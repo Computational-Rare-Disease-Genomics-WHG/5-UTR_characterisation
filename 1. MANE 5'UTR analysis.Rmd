@@ -1,0 +1,1090 @@
+---
+title: "Untitled"
+author: "Nechama Wieder" unless stated otherwise
+date: "2022-09-29"
+output: html_document
+---
+Contents:
+  1. Prepare MANE v1 data
+
+MANE 5'UTR analysis
+  2. 5'UTR Length
+  3. Introns 
+  4. Get UTR sequences
+  5. predicted uAUs 
+    5.1 uAUG/length 
+  6. predicted uORs
+    6.1 uORF per gene 
+    6.2 Last uORF - CDS distance 
+    6.3 uORF Length
+    6.4 Start-Stops
+  7. predictd oORFs
+  8. GC content per 5'UTR 
+  9. Get genomic coordinate positions for uORFs and Start-stops 
+
+#load libraries
+```{r}
+library(ggplot2)
+library(splitstackshape)
+library(stringr)
+library(dplyr)
+library(tidyverse)
+```
+#1. Bring in MANE summary file
+```{r}
+#bring in summary file and remove any clinical transcripts
+mane_summary <- read.delim(".../MANE.GRCh38.v1.0.summary.txt.gz")
+#remove clinical transcripts
+mane_selec <- mane_summary %>% filter(MANE_status=="MANE Select")
+
+#now using these transcripts information, pull the full data info from the gff file
+select_ensembl_genomic <- read.delim(".../MANE.GRCh38.v1.0.ensembl_genomic.gff", header=FALSE)
+ensembl_genomic <- select_ensembl_genomic
+five_prime_UTRs.df <- subset(ensembl_genomic, ensembl_genomic$V3 == "five_prime_UTR")
+five_UTRs_split <- cSplit(five_prime_UTRs.df, "V9", ";")
+five_UTRs_split$V9_03 <- str_remove_all(five_UTRs_split$V9_03, "[gene_id=]") 
+five_UTRs_split$V9_04 <- str_remove_all(five_UTRs_split$V9_04, "[transcript_id=]")
+five_UTRs_split$V9_06 <- str_remove_all(five_UTRs_split$V9_06,  "[gene_name=]") 
+five_UTRs_split$V9_08 <- str_remove_all(five_UTRs_split$V9_08, "[transcript_name=]")
+five_UTRs_split$V9_09 <- str_remove_all(five_UTRs_split$V9_09, "[exon_number=]")
+five_UTRs_split$V9_11 <- str_remove_all(five_UTRs_split$V9_11, "[tag=]")
+names(five_UTRs_split)[11] <- "gene_id"
+names(five_UTRs_split)[12] <- "transcript_id"
+names(five_UTRs_split)[14] <- "gene_name"
+names(five_UTRs_split)[16] <- "transcript_name"
+names(five_UTRs_split)[17] <- "exon_number"
+names(five_UTRs_split)[19] <- "MANE_tag"
+
+#merge to get the transcript info that i want from the summary info?
+names(mane_selec)[8]<-"transcript_id"
+mane_five <- merge(mane_selec, five_UTRs_split, by="transcript_id")
+#save
+#write.table(mane_five, ".../mane_five.txt")
+
+```
+#2. 5'UTR Full Exon Length
+```{r message=FALSE, error=FALSE, warning=FALSE}
+#1. add a column of just 1's
+mane_five$one <- c(1)
+#2. Calculate exon lengths
+mane_five$exon_length <- (mane_five$V5 - mane_five$V4) + 1
+#3. calculate full UTR exon length for each gene
+UTR_length <- aggregate(mane_five$exon_length, by=list(gene_name=mane_five$gene_name, gene_id = mane_five$gene_id, transcript_id = mane_five$transcript_id), FUN=sum)#18764
+#rename col 'x' to UTR_length
+names(UTR_length)[4] <- "UTR_length"
+#4. Analysis
+mean(UTR_length$UTR_length)#202bp 201.6124
+median(UTR_length$UTR_length)#136bp
+
+#how many have no 5UTRs?
+summary_mane <- read.delim(".../MANE.GRCh38.v1.0.summary.txt.gz")
+names(summary_mane)[2]<-"gene_id"
+
+no_utr <- anti_join(summary_mane, UTR_length, by="gene_id")#298
+
+#how many mane select transcripts?
+selec <- summary_mane %>%filter(MANE_status=="MANE Select")
+#19062
+
+#298/19062 *100
+```
+#3. 5'UTR Introns
+```{r message=FALSE, error=FALSE, warning=FALSE}
+##theory
+#introns = exon number -1
+#however there can be introns between last 5UTR exon and CDS start, which this wouldn't account for so do separately
+#get mane cds start site for each gene, and can use the difference between this and last exon in a 5'UTR to determine if any introns in that space
+
+#1.Get 5' UTR end positions
+#do + and - strands seperately
+five_pos <- mane_five %>%filter(V7 == "+")
+five_neg<- mane_five %>%filter(V7 == "-")
+
+#positive:
+five_pos2 <- five_pos %>% group_by(gene_name) %>% dplyr::slice(which.max(V5))
+names(five_pos2)[19]<- "utr_end"
+#subset
+five_pos_start <-subset(five_pos2, select = c(V4, utr_end, V7, gene_name, transcript_id)) 
+
+#negative
+#want for each gene the smallest utr end as this is closest to the cds 
+five_neg2 <- five_neg %>% group_by(gene_name) %>% dplyr::slice(which.min(V5))
+names(five_neg2)[19]<- "utr_end"
+five_neg_start <- subset(five_neg2, select = c(V4, utr_end, V7, gene_name, transcript_id)) 
+
+#merge with other utr info length exon
+five_utrs_pos <- merge(five_pos_start, UTR_length, by = "transcript_id")
+five_utrs_neg <- merge(five_neg_start, UTR_length, by = "transcript_id")
+
+
+#2. get CDS start - using "start codon" in V3 of ensembl_genomic df.  Be aware that the V8 col is phasing of the start codon, so only use those that have "0" in this col. 
+
+start <-  subset(ensembl_genomic, ensembl_genomic$V3 == "start_codon")
+start <- start %>% filter(V8=="0")#19120
+start_split <- cSplit(start, "V9", ";")
+start_split$V9_03 <- str_remove_all(start_split$V9_03, "[gene_id=]") 
+start_split$V9_06 <- str_remove_all(start_split$V9_06, "[gene_name=]") 
+start_split$V9_08 <- str_remove_all(start_split$V9_08, "[transcript_name=]")
+start_split$V9_09 <- str_remove_all(start_split$V9_09, "[exon_number=]")
+start_split$V9_11 <- str_remove_all(start_split$V9_11, "[tag=]")
+start_split$V9_04 <- str_remove_all(start_split$V9_04, "[transcript_id=]")
+names(start_split)[11] <- "gene_id"
+names(start_split)[14] <- "gene_name"
+names(start_split)[16] <- "transcript_name"
+names(start_split)[17] <- "exon_number"
+names(start_split)[19] <- "MANE_tag"
+names(start_split)[12] <- "transcript_id"
+
+start_final <- start_split[grepl("MANE_Selec", start_split$MANE_tag), ] #19062 
+names(start_final)[4] <- "start_codon_cds"
+#subset
+start_cds <- subset(start_final, select = c(start_codon_cds, V5, V7, gene_name, transcript_id))
+
+#pos
+start_cds_pos <- start_cds %>% filter (V7 == "+")
+
+##3. Merge utr stop and cds start codons df
+#pos
+start_utr_pos <- merge(five_utrs_pos, start_cds_pos, by = "transcript_id")
+start_utr_pos$dis <- start_utr_pos$start_codon_cds - start_utr_pos$utr_end
+# this looks normal
+
+#neg
+start_cds_neg <- start_cds %>% filter (V7 == "-")
+start_utr_neg <- merge(five_utrs_neg, start_cds_neg, by = "transcript_id")
+#need to do the UTR start position - the start codon end position (the G) 
+start_utr_neg$dis <- start_utr_neg$V4 - start_utr_neg$V5
+
+#bind + and - 
+introns <- rbind(start_utr_pos, start_utr_neg)
+#if dis >1  add these to intron pile from subtracting exon numbers.  they are only the ones with a space between utr and gene
+extra_intron <- introns %>% filter(dis>1)#145
+
+
+#get introns by doing exon number minus 1
+# first add 5'UTR exon number to each gene
+exon_number <-  aggregate(mane_five$one, by=list(gene_name=mane_five$gene_name, gene_id = mane_five$gene_id, transcript_id = mane_five$transcript_id), FUN=sum)
+#rename 'x' to something helpful
+names(exon_number)[4] <- "exon_number"
+#add to 5UTR length df
+UTR_length$exon_number <- exon_number$exon_number
+UTR_length$intron1 <- UTR_length$exon_number-1
+
+#now add these "hidden" introns to this set
+#add exon number to the extra_intron set
+exon <- data.frame("gene_name" = UTR_length$gene_name, "exon_number" = UTR_length$exon_number)
+
+extra_intron <- merge(extra_intron, exon, by="gene_name")
+extra_intron$intron1 <- extra_intron$exon_number-1
+extra_intron$intron_final <- extra_intron$intron1 + 1
+#these genes intron number = exon number
+
+#add these to original set
+#now want to merge this extra_intron list with length_exon but overwrite what legnth_exon has for these..how to do this?
+UTR_length$intron_final <- UTR_length$intron1
+extra2 <- subset(extra_intron, select = c(gene_id, transcript_id, gene_name, UTR_length, exon_number, intron1, intron_final))
+
+
+#remove genes from length exon that are in extra2
+int <- extra2$gene_name
+intron_data <- UTR_length[! UTR_length$gene_name %in% int, ] #18619
+#now bind in the correct ones
+intron_final <- rbind(intron_data, extra2)#18764 
+
+#remove intron1 col
+intron_final <- subset(intron_final,select = -c(intron1))
+
+#write.table(intron_final, file=".../length_introns_12.12.22.txt")
+
+#genes with 1+ intron
+more_in <- intron_final %>% filter(intron_final>0)#7066
+(nrow(more_in)/18764)*100 # 37.65722
+
+```
+#4. Get MANE 5'UTR sequences
+```{r}
+#PLAN:
+#(this is for mane version 0.92)
+#1. "MANE.GRCh38.v0.92.select_ensembl_genomic.gff.gz" file - filter to mane select, and aggregate to get exons per gene
+#2. get sequences from mane file "MANE.GRCh38.v0.92.select_ensembl_rna.fna.gz". then remove the ones that have no sequences.
+#3. merge 1 and 2 so i have sequences for UTRs which are mane select
+
+#1. select_ensembl_genomic.gff.gz - filter
+#bring in file
+select_ensembl_genomic <- read.delim("MANE.GRCh38.v1.0.ensembl_genomic.gff", header = FALSE)
+ensembl_genomic <- select_ensembl_genomic
+#subset to UTRs only
+UTRs <- subset(ensembl_genomic, ensembl_genomic$V3 == "five_prime_UTR" | ensembl_genomic$V3 == "three_prime_UTR")
+# split V9 columnout
+library(splitstackshape)
+library(stringr)
+UTRs2 <- cSplit(UTRs, "V9", ";")
+#remove titles from entire columns
+UTRs2$V9_03 <- str_remove_all(UTRs2$V9_03, "[gene_id=]") 
+UTRs2$V9_06 <- str_remove_all(UTRs2$V9_06, "[gene_name=]") 
+UTRs2$V9_08 <- str_remove_all(UTRs2$V9_08, "[transcript_name=]")
+UTRs2$V9_04 <- str_remove_all(UTRs2$V9_04, "[transcript_id=]")
+UTRs2$V9_09 <- str_remove_all(UTRs2$V9_09, "[exon_number=]")
+UTRs2$V9_11 <- str_remove_all(UTRs2$V9_11, "[tag=]")
+
+#rename column headings
+names(UTRs2)[11] <- "gene_id"
+names(UTRs2)[14] <- "gene_name"
+names(UTRs2)[12] <- "transcript_id"
+names(UTRs2)[16] <- "transcript_name"
+names(UTRs2)[17] <- "exon_number"
+names(UTRs2)[19] <- "MANE_tag"
+
+#filter to MANE selec only
+final_UTR <- UTRs2[grepl("MANE_Selec", UTRs2$MANE_tag), ]
+
+#filter to full UTRs as currently exons in UTRs
+#5' UTR
+library(dplyr)
+fives <- final_UTR %>% filter(V3 == "five_prime_UTR")
+fives$one <- 1
+five <- aggregate(fives$one, by=list(gene=fives$gene_name, gene_id = fives$gene_id, transcript = fives$transcript_id), FUN=sum)
+names(five)[4]<- "total_exons"
+#16681
+
+#3' UTR
+threes <- final_UTR %>% filter(V3 == "three_prime_UTR")
+
+#aggregate by exon number
+threes$one <- 1
+three <- aggregate(threes$one, by=list(gene=threes$gene_name, gene_id = threes$gene_id, transcript = threes$transcript_id), FUN=sum)
+names(three)[4]<- "total_exons"
+#16706
+
+#2.get sequences
+##Author: Frederik Heymann Lassen
+##mane 1
+setwd("/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE downloads/MANE v1")
+
+
+##PART 1 - GET ALL SEQUENCES
+library(data.table)
+# read data and convert to matrix
+x <- readLines("MANE.GRCh38.v1.0.ensembl_rna.fna.gz")
+#x <- x[1:100]
+# define boundaries for identifiers
+x[grepl('>',x)] <- paste0(x[grepl('>',x)] , '<')
+x <- paste0(x, collapse = '')
+# all data is merged, not split them by our boundary elements
+sequences <- data.frame(unlist(strsplit(x, split = '>')))
+colnames(sequences) <- 'full'
+# And convert into 2xN data.frame with columns ID and sequence
+mat <- as.data.table(do.call(rbind, lapply(sequences$full, function(x) unlist(strsplit(x, split = '<')))))
+colnames(mat) <- c('id','seq')
+# format the header (extract the relevant columns)
+enstid_version <- unlist(lapply(strsplit(mat$id, split = ' '), function(x) x[1]))
+enstid <- unlist(lapply(strsplit(enstid_version, split = '\\.'), function(x) x[1]))
+ensgid_version <- unlist(lapply(strsplit(gsub('gene:','',mat$id), split = ' '), function(x) x[4]))
+ensgid <- unlist(lapply(strsplit(ensgid_version, split = '\\.'), function(x) x[1]))
+biotype <- unlist(lapply(strsplit(gsub('gene_biotype:','',mat$id), split = ' '), function(x) x[5]))
+biotype_transcript <- unlist(lapply(strsplit(gsub('transcript_biotype:','',mat$id), split = ' '), function(x) x[6]))
+gene_symbol <- unlist(lapply(strsplit(gsub('gene_symbol:','',mat$id), split = ' '), function(x) x[7]))
+loc <- unlist(lapply(strsplit(gsub('chromosome:GRCh38:','',mat$id), split = ' '), function(x) x[3]))
+loc_chr <- unlist(lapply(strsplit(loc, split = '\\:'), function(x) x[1]))
+loc_start <- as.numeric(unlist(lapply(strsplit(loc, split = '\\:'), function(x) x[2])))
+loc_end <- as.numeric(unlist(lapply(strsplit(loc, split = '\\:'), function(x) x[3])))
+loc_direction <- as.numeric(unlist(lapply(strsplit(loc, split = '\\:'), function(x) x[4])))
+# generate new matrix with these details
+dt <- data.table(gene_symbol, ensgid, ensgid_version, enstid, enstid_version, biotype, biotype_transcript, chr = loc_chr, bp_start = loc_start, bp_end = loc_end, direction = loc_direction, seq = mat$seq) # ~ 17k genes
+
+fwrite(dt, "MANE.GRCh38.v1.select_ensembl_rna_matrix.txt", sep = '\t')
+
+#now have the sequences, I need to split into UTRs
+
+####PART 2. Split into CDS and UTR seqs
+
+# First, extract CDS position of the sequence 
+x <- read.table('MANE.GRCh38.v1.select_ensembl_genomic.gff.gz', sep = '\t') # <--- change me
+y <- x
+# the only entries we are interested in
+cds <- y[ y$V3 %in% c('CDS','exon','start_codon' ,'stop_codon'),]
+utrs <- y[ y$V3 %in% c('five_prime_UTR','three_prime_UTR'),]
+## deal with CDS first
+mat_cds <- do.call(rbind, strsplit(cds$V9,split =';'))
+# re-define names so it's easier to work with
+chr <- gsub('chr','',cds$V1)
+origin <- cds$V2
+type <- cds$V3
+bp_start <- cds$V4
+bp_end <- cds$V5
+direction <- cds$V7
+extra <- cds$V8
+# manually remove extra strings
+id <-  gsub('ID=','',mat_cds[,1])
+parent <- gsub('Parent=','',mat_cds[,2])
+ensgid_version <-  gsub('gene_id=','',mat_cds[,3])
+enstid_version <-  gsub('transcript_id=','',mat_cds[,4])
+biotype <-  gsub('gene_type=','',mat_cds[,5])
+biotype_transcript <-  gsub('transcript_type=','',mat_cds[,7])
+gene_symbol <-  gsub('gene_name=','',mat_cds[,6])
+exon <-  gsub('exon_number=','',mat_cds[,9])
+exon_id <-  gsub('exon_id=','',mat_cds[,10])
+transcript_name <-  gsub('transcript_name=','',mat_cds[,8])
+# make data.frame
+cds_dt <- data.table(id, type, origin, chr, bp_start, bp_end, direction, extra, gene_symbol, parent, ensgid_version, enstid_version, biotype, biotype_transcript, exon, exon_id, transcript_name)
+
+fwrite(cds_dt, 'MANE.GRCh38.v1.select_ensembl_genomic_matrix_cds.txt', sep = '\t') # <--- change me
+
+## step 3) extract UTR positions
+mat_utr <- do.call(rbind, strsplit(utrs$V9,split =';'))
+# again, get dedicated variables so it's easier to use
+chr <- gsub('chr','',utrs$V1)
+origin <- utrs$V2
+type <- utrs$V3
+bp_start <- utrs$V4
+bp_end <- utrs$V5
+direction <- utrs$V7
+extra <- utrs$V8
+# remove redudant information now contained in column names
+id <-  gsub('ID=','',mat_utr[,1])
+parent <- gsub('Parent=','',mat_utr[,2])
+ensgid_version <-  gsub('gene_id=','',mat_utr[,3])
+enstid_version <-  gsub('transcript_id=','',mat_utr[,4])
+biotype <-  gsub('gene_type=','',mat_utr[,5])
+biotype_transcript <-  gsub('transcript_type=','',mat_utr[,7])
+gene_symbol <-  gsub('gene_name=','',mat_utr[,6])
+exon <-  gsub('exon_number=','',mat_utr[,9])
+exon_id <-  gsub('exon_id=','',mat_utr[,10])
+transcript_name <-  gsub('transcript_name=','',mat_utr[,8])
+# convert to dt and write out.
+utr_dt <- data.table(id, type, origin, chr, bp_start, bp_end, direction, extra, gene_symbol, parent, ensgid_version, enstid_version, biotype, biotype_transcript, exon, exon_id, transcript_name)
+
+fwrite(utr_dt, 'MANE.GRCh38.v1.select_ensembl_genomic_matrix_UTRs.txt', sep = '\t')
+
+library(data.table)
+# load in data
+rna <- fread('MANE.GRCh38.v1.select_ensembl_rna_matrix.txt', sep = '\t')
+utr <- fread('MANE.GRCh38.v1.select_ensembl_genomic_matrix_UTRs.txt', sep = '\t')
+cds <- fread('MANE.GRCh38.v1.select_ensembl_genomic_matrix_cds.txt', sep = '\t')
+# combine rna (transcript data with utr data)
+utr <- rbind(utr, cds)
+# merge data
+colnames(utr) <- paste0('utr.',colnames(utr))
+mrg <- merge(utr[utr$utr.type %in% c('CDS',"exon","three_prime_UTR","five_prime_UTR"),], rna, by.x = 'utr.enstid_version', by.y = 'enstid_version')
+# Prep for writing out the data
+enstids <- unique(mrg$utr.enstid_version)
+enstid <- enstids 
+# helper functions
+revseq <- function(x) paste0(rev(unlist(strsplit(x, ''))), collapse = '')
+
+
+sequences <- lapply(enstids, function(enstid){
+  # enstid <- "ENST00000255082.8"
+  bool_transcript <- mrg$utr.enstid_version == enstid
+  df <- mrg[bool_transcript, ]
+  df <- df[order(df$utr.bp_start,)]
+  df <- df[df$utr.type != 'exon',]
+  direction <- unique(df$direction)
+  seq <- unique(df$seq)
+  seq <- ifelse(direction == 1, seq, revseq(seq))
+  df$seq <- NULL
+  df$newseq <- NA
+  df$cdna <- NA
+  df$cdna_rev <- NA
+  # setup vars
+  df$lens <- df$utr.bp_end - df$utr.bp_start
+  # check that exons + introns matches up to total gene length
+  stopifnot(sum(df$utr.bp_end - df$utr.bp_start) == nchar(seq)- nrow(df))
+  # sequence handling
+  start <- unique(df$bp_start)
+  end <- unique(df$bp_end)
+  lens <- 0
+  for (i in 1:nrow(df)){
+      # current position (cDNA)
+      x1 <- df$utr.bp_start[i] - start
+      x2 <- df$utr.bp_end[i] - start
+      # remove introns
+      intron_len <- x1-lens
+      x1 <- abs(x1 - intron_len)
+      x2 <- abs(x2 - intron_len)
+      # position in gene
+      stopifnot(length(df$utr.bp_start[i]:df$utr.bp_end[i]) == length(x1:x2))
+      # keep track of interval 
+      interval <- (x1:x2)+(i)
+      newseq <- paste0(unlist(strsplit(seq,split=''))[interval], collapse = '')
+      df$newseq[i] <- ifelse(direction == 1, newseq, revseq(newseq))
+      df$cdna[i] <- paste0(x1+i,'-',x2+i)
+      #df$cdna_rev[i] <- paste0(y1+i,'-',y2+i)
+      lens <- lens + df$lens[i]
+  }
+  ## NOTE: THIS IS AN UNGLY HACK TO AVOID DEALING WITH REVERSE STRAND
+  # IN A PROPER WAY. TODO, AVOID THIS MESS
+  if (direction == -1){
+    lens <- 0
+    lst <- list()
+    for (i in nrow(df):1){
+      # current position (cDNA)
+      x1 <- df$utr.bp_start[i] - start
+      x2 <- df$utr.bp_end[i] - start
+      # remove introns
+      intron_len <- x1-lens
+      x1 <- abs(x1 - intron_len)
+      x2 <- abs(x2 - intron_len)
+      # keep track of interval 
+      u <- nrow(df)-i+1
+      lst[[i]] <- (paste0(x1+u,'-',x2+u))
+      lens <- lens + df$lens[i]
+    }
+    df$cdna <- unlist(lst)
+  }
+  return(df)
+})
+# combine data
+seq_df <- do.call(rbind, sequences)
+seq_df <- seq_df[,as.logical(!duplicated(t(seq_df))), with = F]
+colnames(seq_df) <- gsub('utr\\.bp_','exon\\.bp_',colnames(seq_df))
+colnames(seq_df) <- gsub('utr\\.','',colnames(seq_df))
+
+sequences_combined <- do.call(rbind, lapply(enstids, function(enstid){
+  # enstid <- "ENST00000255082.8"
+  bool_transcript <- seq_df$enstid_version == enstid
+  df <- seq_df[bool_transcript, ]
+  direction <- unique(df$direction)
+  stopifnot(length(direction) == 1)
+  if (direction == '-'){
+    df <- df[nrow(df):1]
+  }
+  # get RNA sequence
+  UTR_5 <- paste0(df$newseq[df$type == 'five_prime_UTR'], collapse = '')
+  CDS <- paste0(df$newseq[df$type == 'CDS'], collapse = '')
+  UTR_3 <- paste0(df$newseq[df$type == 'three_prime_UTR'], collapse = '')
+  # Keep cDNA positions
+  UTR_5_cdna <- paste0(df$cdna[df$type == 'five_prime_UTR'], collapse = ';')
+  CDS_cdna <- paste0(df$cdna[df$type == 'CDS'], collapse = ';')
+  UTR_3_cdna <- paste0(df$cdna[df$type == 'three_prime_UTR'], collapse = ';')  
+  # Keep Grch38 positions
+  UTR_5_bp <- paste0(df$exon.bp_start[df$type == 'five_prime_UTR'], '-',df$exon.bp_end[df$type == 'five_prime_UTR'], collapse = ';')
+  CDS_bp <- paste0(df$exon.bp_start[df$type == 'CDS'], '-',df$exon.bp_end[df$type == 'CDS'], collapse = ';')
+  UTR_3_bp <- paste0(df$exon.bp_start[df$type == 'three_prime_UTR'], '-',df$exon.bp_end[df$type == 'three_prime_UTR'], collapse = ';')  
+  chrom = unique(df$chr)
+  stopifnot(length(chrom) == 1)
+  row <- df[1,c(10,11,16, 1, 12)]
+  r1 <- data.frame(row, type = 'five_prime_UTR', chr = chrom, bp = UTR_5_bp, bp_cdna = UTR_5_cdna, strand = direction, seq = UTR_5)
+  r2 <- data.frame(row, type = 'three_prime_UTR', chr = chrom, bp = CDS_bp,  bp_cdna = CDS_cdna, strand = direction, seq = UTR_3)
+  r3 <- data.frame(row, type = 'CDS', chr = chrom, bp = UTR_3_bp, bp_cdna = UTR_3_cdna, strand = direction, seq = CDS)
+  res <- rbind(r1, r2, r3)
+  return(res)
+}))
+
+fwrite(sequences_combined, 'MANE.GRCh38.v1.combined-table.txt', sep = '\t')
+
+#filter to just UTRs
+UTR_seqs <- allseqs %>% filter(type == "five_prime_UTR" | type == "three_prime_UTR")
+fwrite(UTR_seqs, "20.7.21 all UTR seqs.txt", sep = "\t")
+
+#remove empty sequence rows
+## filter to just 5' and 3' seperatly
+fiveprime <- UTR_seqs %>% filter(type == "five_prime_UTR")
+fiveprime2 <- fiveprime[!fiveprime$seq == "",]
+#16724
+
+threeprime <- UTR_seqs %>% filter(type == "three_prime_UTR")
+threeprime2 <- threeprime[!threeprime$seq == "",]
+#16749
+
+#3. merge the 2 files to get mane select sequences
+
+#five utr
+#rename
+names(fiveprime2)[4]<- "transcript"
+five_final <- merge(fiveprime2, five, by = "transcript")
+#16681
+#three utr
+names(threeprime2)[4]<- "transcript"
+three_final <- merge(threeprime2, three, by = "transcript")
+#16706
+
+# save them:
+fwrite(five_final, "9.12.22 5' UTR sequences all info.txt", sep = "\t")
+fwrite(three_final, "9.12.22 3' UTR sequences all info.txt", sep = "\t")
+```
+
+
+#5. uAUG's 
+```{r message=FALSE, error=FALSE, warning=FALSE}
+######1. uAUG per gene
+
+#use a version with length and introns carried through?
+UTR_sequences.df <- read.table(".../9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
+#subset relevant cols
+five_UTR_seqs.df <- data.frame(transcript = UTR_sequences.df$transcript, gene = UTR_sequences.df$gene, region = UTR_sequences.df$type, sequence = UTR_sequences.df$seq, ensg_version = UTR_sequences.df$ensgid_version, ensg =UTR_sequences.df$ensgid)
+
+# get uAUGs 
+atg_count <- five_UTR_seqs.df
+atg_count$atg_count <- str_count(five_UTR_seqs.df$sequence, "ATG")
+
+#filter out where ATG = 0
+atg_only <- atg_count %>% filter(atg_count >0)
+#7979/18764 (42.52292%) genes have at least one uATG
+
+#subset
+atgstop <- subset(atg_only, select = c(transcript, gene, sequence, atg_count, ensg, ensg_version))
+
+
+####2. uAUG/length metric stuff
+#calculate uAUG divided by length of 5UTR to get a measurement 
+#merge with intron_final
+atgstop$utr_len <- str_length(atgstop$sequence)
+atgstop$metric <- atgstop$atg_count/atgstop$utr_len
+
+
+#save
+#write.table(atgstop, "/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE Analysis/5' UTR analysis/5UTr paper/code for paper/MANE v1/uaug_metric_m1.txt")
+```
+#6. uORFs
+```{r message=FALSE, error=FALSE, warning=FALSE}
+#uORF definition: an ATG with the first stop in-frame to it. Can have multiple ATGs "using" the same stop
+
+##1. count stops
+atgstop$tag_count <- str_count(atgstop$sequence, "TAG")
+atgstop$taa_count <- str_count(atgstop$sequence, "TAA")
+atgstop$tga_count <- str_count(atgstop$sequence, "TGA")
+
+#filter out where all 3 stops = 0
+  atg_stop <- atgstop %>% filter(tag_count + taa_count+tga_count >0)
+
+##2. Get start and stop positions
+  
+#subset atg_stop to just have transcript, gene + sequence. everything in here has at least 1 start and stop
+atgplusstop <- data.frame("transcript" = atg_stop$transcript, "gene" = atg_stop$gene, "sequence" = atg_stop$sequence)
+
+#get atg and stops positions
+atg <- atgplusstop %>% mutate(position = str_locate_all(atgplusstop$sequence, "ATG")) %>% unnest
+tag<- atgplusstop %>% mutate(position = str_locate_all(atgplusstop$sequence, "TAG")) %>% unnest
+taa<- atgplusstop %>% mutate(position = str_locate_all(atgplusstop$sequence, "TAA")) %>% unnest
+tga<- atgplusstop %>% mutate(position = str_locate_all(atgplusstop$sequence, "TGA")) %>% unnest
+
+#rename
+names(atg)[4] <- "atg_pos"
+names(tag)[4] <- "tag_pos"
+names(taa)[4] <- "taa_pos"
+names(tga)[4] <- "tga_pos"
+
+#merge atg+each stop
+atg_tag1 <- merge(atg, tag, by = "transcript")
+atg_taa1 <- merge(atg, taa, by = "transcript")
+atg_tga1 <- merge(atg, tga, by = "transcript")
+
+#subset
+#tag
+atg_tag2 <- data.frame("transcript" = atg_tag1$transcript, "gene" = atg_tag1$gene.x, "sequence" = atg_tag1$sequence.x, "atg_pos" = atg_tag1$atg_pos, "tag_pos" = atg_tag1$tag_pos)
+
+atg_tag <- subset(atg_tag2, select = c(transcript, gene, sequence, atg_pos.1, tag_pos.1))
+names(atg_tag)[4] <- "atg_pos"
+names(atg_tag)[5] <- "tag_pos"
+
+#taa
+atg_taa2 <- data.frame("transcript" = atg_taa1$transcript, "gene" = atg_taa1$gene.x, "sequence" = atg_taa1$sequence.x, "atg_pos" = atg_taa1$atg_pos, "taa_pos" = atg_taa1$taa_pos)
+
+atg_taa <- subset(atg_taa2, select = c(transcript, gene, sequence, atg_pos.1, taa_pos.1))
+names(atg_taa)[4] <- "atg_pos"
+names(atg_taa)[5] <- "taa_pos"
+
+#tga
+atg_tga2 <- data.frame("transcript" = atg_tga1$transcript, "gene" = atg_tga1$gene.x, "sequence" = atg_tga1$sequence.x, "atg_pos" = atg_tga1$atg_pos, "tga_pos" = atg_tga1$tga_pos)
+
+atg_tga <- subset(atg_tga2, select = c(transcript, gene, sequence, atg_pos.1, tga_pos.1))
+names(atg_tga)[4] <- "atg_pos"
+names(atg_tga)[5] <- "tga_pos"
+
+##3. CALCULATE possible UORFS WITHIN EACH ATG+STOP DF
+
+#tag
+atg_tag$inframe <- (atg_tag$tag_pos - atg_tag$atg_pos)/3
+atg_tag$integer <- atg_tag$inframe%%1==0
+atg_tag$count_uORF <- 0
+#filter to values >0
+atgtag <- atg_tag %>% filter(inframe>=0)
+#subset to those with uORF : integer = TRUE
+taguORF  <- atgtag %>% filter((integer == "TRUE"))
+taguORF$count_uORF <- 1
+
+#taa
+atg_taa$inframe <- (atg_taa$taa_pos - atg_taa$atg_pos)/3
+atg_taa$integer <- atg_taa$inframe%%1==0
+#filter to >0 values
+atgtaa <- atg_taa %>% filter(inframe>=0)
+#subset to those with uORF
+taauORF  <- atgtaa %>% filter((integer == "TRUE"))
+taauORF$count_uORF <- 1
+
+#tga
+atg_tga$inframe <- (atg_tga$tga_pos - atg_tga$atg_pos)/3
+atg_tga$integer <- atg_tga$inframe%%1==0
+#filter to >0 values
+atgtga <- atg_tga %>% filter(inframe>=0)
+#subset to those with uORF
+tgauORF  <- atgtga %>% filter((integer == "TRUE"))
+tgauORF$count_uORF <- 1
+
+##4. Keep stops nearest ATG
+
+#subset for ease
+#tag
+final_1 <- data.frame("transcript" = taguORF$transcript, "gene" = taguORF$gene, "sequence" = taguORF$sequence, "atg_pos" = taguORF$atg_pos, "stop_pos" = taguORF$tag_pos)
+#taa
+final_2 <- data.frame("transcript" = taauORF$transcript, "gene" = taauORF$gene, "sequence" = taauORF$sequence, "atg_pos" = taauORF$atg_pos, "stop_pos" = taauORF$taa_pos)
+#tga
+final_3 <- data.frame("transcript" = tgauORF$transcript,  "gene" = tgauORF$gene, "sequence" = tgauORF$sequence, "atg_pos" = tgauORF$atg_pos, "stop_pos" = tgauORF$tga_pos)
+
+#merge
+total <- rbind(final_1, final_2, final_3)
+
+
+#keep stop nearest ATG
+true_uORF <- total %>% group_by(transcript, atg_pos) %>% arrange(stop_pos) %>% slice(1)
+#19131 uORFs (incldues startstops)
+
+true_uORF$len <- true_uORF$stop_pos- true_uORF$atg_pos
+###################ANALYSIS########################
+#####5. number of uORFs per gene
+uORFgene <- true_uORF
+uORFgene$uORF_count <- 1
+
+uORF_per_gene <- aggregate(uORFgene$uORF_count, by = list(transcript = uORFgene$transcript, gene = uORFgene$gene), FUN=sum)
+names(uORF_per_gene)[3] <- "uORF_count"
+
+#6461 genes have at least 1 uORF, range 1-61
+#6461/18764 = 34.43296 genes with at least 1 uorf
+#    5.3 uORF Length >> output 
+
+##6. Last uORF to CDS distance - reinitiation space
+
+#1. +2 to each stop pos (to get the end of the stop)
+true_uORF$stop2 <- true_uORF$stop_pos +2
+
+#2. for each gene, keep the uORF with the furthest stop..
+uORF_laststop <- true_uORF %>% group_by(gene) %>% slice(which.max(stop2)) #5699
+#check: u <- unique(uORF_laststop$gene) all good
+
+#3. calculate end of UTR so can see uORF pos wrt to end of UTR
+#length of UTR
+uORF_laststop$utr_len <-  str_length(uORF_laststop$sequence)
+
+#4. uorf stop to end of UTR
+uORF_laststop$dis <- uORF_laststop$utr_len - uORF_laststop$stop2
+mean(uORF_laststop$dis) #84.55912
+
+#just uorfs
+uo1 <- uo_dis %>% filter(orf_type=="uORF")
+mean(uo1$dis)#84.66535
+
+
+#save?
+#write.table(uORF_laststop, file=".../uorfs reinitiation dis 20.9.22.txt")
+
+
+
+    
+##7. uORF length
+#the first pos of start codon to last pos of stop codon
+true_uORF$uorf_len <- (true_uORF$stop2 - true_uORF$atg_pos)+1
+
+
+
+###8. Start-Stops
+#ATG followed immediately with a stop codon ie ATGTAG
+start_stop <- true_uORF %>% filter(len==3) #1067
+# frequency 1067/18673 == 6%
+
+#start-stop per gene:
+ss_genes <- data.frame(table(start_stop$gene))#745
+#range 1-4 start-stops per gene
+
+
+#uORF with no start-stops
+final_uORF <- true_uORF %>% filter(uorf_len>6)#13979
+
+#save
+f_uo <- subset(final_uORF, select=-c(stop2, uorf_len))
+f_uo$orf_type <- "uORF"
+
+f_ss <- subset(start_stop, select=-c(len))
+f_ss$orf_type <- "start-stop"
+
+
+orf <- rbind(f_uo, f_ss)
+#write.table(orf, ".../uo_ss_12.12.22.txt")
+ 
+```
+
+#7. oORFs
+```{r message=FALSE, error=FALSE, warning=FALSE}
+#oORF definiton - an ATG with no stop in frame to it within the 5UTR
+
+#PART 1: Calculate oORFs
+#1. genes with ATGs which had no stops after 
+oORF1 <- atgstop %>% filter(tag_count + taa_count+tga_count == 0)#228
+sum(oORF1$atg_count)#209
+#2. ATGs which had stops after 
+sum(atg_stop$atg_count) #22319
+#3. ATGs which had stops minus true_uORFs (so these technically had a stop in sequence but they were not in frame so these ATGs are oORFs)
+#22319-19131 = 3188
+
+#expect (3188+228) 3416 total oORFs
+
+#PART 2: Are they in frame?
+#get every atg position which has a stop then remove uORFs from it 
+all_atg <- atg_stop %>% mutate(position = str_locate_all(atg_stop$sequence, "ATG")) %>% unnest
+
+allatg <- data.frame("transcript" = all_atg$transcript, "gene" = all_atg$gene, "sequence" = all_atg$sequence, "atg_pos" = all_atg$position)
+
+names(allatg)[4]<-"atg_pos"
+
+#combine 
+allatg$comb <- paste(allatg$transcript, allatg$gene, allatg$sequence, allatg$atg_pos, sep = "_")
+
+true_uORF$comb <- paste(true_uORF$transcript, true_uORF$gene, true_uORF$sequence, true_uORF$atg_pos, sep="_")
+
+#make the combined into variables
+allatgs <- allatg$comb
+uORFatgs <- true_uORF$comb
+
+oORF2 <- setdiff(allatgs, uORFatgs) #3188 yay
+#convert to df
+oORF2 <- as.data.frame(oORF2)
+#split into columns
+library(splitstackshape)
+library(stringr)
+oORF2_split <- cSplit(oORF2, "oORF2", "_")
+names(oORF2_split)[1] <- "transcript"
+names(oORF2_split)[2] <- "gene"
+names(oORF2_split)[3] <- "sequence"
+names(oORF2_split)[4] <- "atg_pos"
+
+#combine with oORF1
+oORF1 <- subset(oORF1, select=-c(tag_count, tga_count, taa_count))#209
+#get atg positions for these
+oORF1_atg <- oORF1 %>% mutate(position = str_locate_all(oORF1$sequence, "ATG")) %>% unnest#228 e
+#make the internal atg_pos df a numeric column
+pos <- as.data.frame(oORF1_atg$position)
+oORF1_atg$atg_pos <- pos$V1
+oORF1_final <- subset(oORF1_atg, select = -c(atg_count, position))
+#bind for final oORF df
+#get df to look the same
+
+
+oORF1_final <- subset(oORF1_final, select = c(transcript, gene, sequence, atg_pos))
+
+final_oORF <- rbind(oORF1_final, oORF2_split)#3416
+
+
+##Part 2 determine frame
+#get distance of oORF to CDS and if that is divisible by 3 then its in frame and we assume uses the CDS stop
+#1. get length of 5'UTR
+final_oORF$utr_len <- str_length(final_oORF$sequence)
+final_oORF$oorfend <- final_oORF$atg_pos+2
+final_oORF$three <- (final_oORF$utr_len-final_oORF$oorfend)/3
+
+#filter to integer (in frame)
+final_oORF$integer <- final_oORF$three%%1==0
+final_oORF$frame <-"inframe"
+
+for(qw in 1:nrow(final_oORF)){
+  if(final_oORF$integer[qw] == "FALSE"){
+    final_oORF$frame[qw] <- (final_oORF$frame[qw] <- "outframe")
+  }
+}
+
+#proportion frames?
+frame <- data.frame(table(final_oORF$frame))
+frame$percent <- frame$Freq/(nrow(final_oORF)) *100
+
+
+#save - oorf per gene and individual oORFs?
+#write.table(final_oORF, ".../oorf_12.12.22.txt")
+
+
+#make one df of aug type per gene (frame doesnt matter)
+uo_ss <- read.table(".../uo_ss_12.12.22.txt")
+oorf <- read.table(".../oorf_12.12.22.txt")
+
+#aggregate by gene
+orf_gene <- uo_ss %>% group_by(transcript,orf_type) %>% summarise(n())#7401
+names(orf_gene)[3] <- "count" 
+
+oorf2 <- oorf %>% group_by(transcript)%>% summarise(n())#2806
+oorf2$orf_type <- "oORF"
+names(oorf2)[2]<- "count"
+
+orfgene <- rbind(orf_gene, oorf2)#10207
+#write.table(orfgene, ".../orf_gene 14.12.22.txt")
+
+#genes with at least 1 oorf
+nrow(oorf2)/nrow(length_exon)
+# 0.1495417
+```
+#8. GC Content of 5UTR
+```{r message=FALSE, error=FALSE, warning=FALSE}
+gc <- five_UTR_seqs.df
+gc$g <- str_count(gc$sequence, "G") 
+gc$c <- str_count(gc$sequence, "C") 
+gc$gc <- gc$g + gc$c 
+
+#length of sequence
+gc$utr_len <- str_length(gc$sequence)
+
+#gc %
+gc$percent <- (gc$gc/gc$utr_len)*100
+gc$perc2dec <- round(gc$percent, digits=2)
+mean(gc$perbp)#64%
+#subset
+gc_save <- subset(gc, select = c(transcript, gene, sequence, utr_len, perc2dec))
+names(gc_save)[5] <- "gc_percent"
+
+#save
+#write.table(gc_save, ".../man1_gc.txt")
+```
+#9. Get genomic coordinate positions for uORFs and Start-stops
+```{r message=FALSE, error=FALSE, warning=FALSE}
+## Script to obtain the genomic coordinates given transcript coordinates
+## Requires MANE.gff file
+##Author: Maria Fernandes
+
+## to install the package
+##install.packages("tidyr")
+
+###### libraries
+# install.packages("dplyr")
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+############################################
+
+## Functions
+
+readfile <- function(filename, header){
+  data <- read.delim(filename, header = header, sep ="\t")
+  
+  return(data)
+}
+
+
+## mane_transcript is a dataframe
+cdna2genomic <- function(start, end, strand, mane_transcript){
+  ## start is the transcript start index
+  ## end is the transcript end index
+  ## strand: + = forward; - = reverse
+  ## mane_transcript is the subdataframe with a single mane transcript info
+  
+  num_rows <- nrow(mane_transcript) ## number of exons for the transcript under study
+  
+  if(num_rows > 1){ ## there are introns in the region
+    ## find the minimal - start
+    ## check the end of the fist
+    
+
+    ## sort the sections
+    mane_transcript_sort <- mane_transcript[order(mane_transcript$exon_number),]
+    
+    
+    ## map the transcript coordinates to genomic coordinates
+    
+    t_coord <- c()
+    g_coord <- c()
+    last <- 0
+    
+    if(strand == "+"){ ## correct for the forward strand
+      for (line in 1:nrow(mane_transcript_sort)){
+        genomic_start <- mane_transcript_sort$start[line]
+        len <- mane_transcript_sort$end[line] - mane_transcript_sort$start[line] +1 ## to include the last nt
+
+        for (each in 1:len){
+          t_coord <- append(t_coord, each + last)
+          g_coord <- append(g_coord, genomic_start + each-1)
+          
+        }
+
+        last <- last + each ## updated the last with the previous index
+        
+        ## creates the dataframe with transcript and genomic coordinates
+        map_t2g <- data.frame(t_coord, g_coord)
+        ##print(map_t2g)
+        
+        ## get the genomic coordinates
+        genomic_start <- map_t2g$g_coord[map_t2g$t_coord == start]
+        genomic_end <- map_t2g$g_coord[map_t2g$t_coord == end]
+
+      }
+    }  else { ## reverse strand 
+      ## needs starting from the end of exon 1 --> going to exon 2 end to start
+      for (line in 1:nrow(mane_transcript_sort)){
+        genomic_start <- mane_transcript_sort$end[line] ## HERE it defines the genomic_start as the end of the exon coordinate 
+        
+        ## keeps the same even in reverse strand because in MANE the start and end are ordered from 5' end (line bellow)
+        len_rev <- mane_transcript_sort$end[line] - mane_transcript_sort$start[line] +1 ## to include the last nt
+        
+        for (each_rev in 1:len_rev){
+          t_coord <- append(t_coord, each_rev - last)
+          g_coord <- append(g_coord, genomic_start - each_rev+1)
+          
+        }
+
+        last <- last - each_rev ## updated the last with the previous index
+        
+        ## creates the dataframe with transcript and genomic coordinates
+        map_t2g <- data.frame(t_coord, g_coord)
+        
+        ## get the genomic coordinates
+        genomic_start <- map_t2g$g_coord[map_t2g$t_coord == end] ## inverted so the coordinated are aligned from 5' to 3'
+        genomic_end <- map_t2g$g_coord[map_t2g$t_coord == start]
+
+      }
+    }
+
+    
+    
+  } else { ## no introns in the region
+    if(strand == "+"){
+      len <- end - start + 1 ## to include the last nt
+      
+      genomic_start <- mane_transcript$start + start - 1 ## start -1 because the counting starts at position 1 in R -- so for python coordinates is minus one
+      genomic_end <- mane_transcript$start + start -1  + len - 1 
+
+    } else{
+      
+      len <- end - start + 1 ## to include the last nt
+      genomic_start <- mane_transcript$end - start +1 - len + 1      ## inverted so the coordinated are aligned from 5' to 3'
+      genomic_end <-  mane_transcript$end - start + 1 ## start +1 because the counting starts at position 1 in R -- so for python coordinates is minus one
+    }                                                 ## equivalent to -1 on the forward strand
+  }
+  
+  return (c(genomic_start, genomic_end))
+
+}
+
+
+
+#######################################################################
+
+
+
+## open MANE file
+mane_filename <- "/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE downloads/MANE v1/MANE.GRCh38.v1.0.ensembl_genomic.gff"
+
+mane <- readfile(mane_filename, FALSE)
+colnames(mane) <- c('chr','source','category','start', 'end', 'other', 'strand', 'other2', 'info')
+
+## remove the first two lines which are headers
+mane <- mane[-c(1), ]
+mane <- mane[-c(2), ]
+
+## split information column into new ones
+mane <- separate(mane, col = info, into = c("ID", "parent", "gene_id", "transcript_id", "gene_type", 
+                                                      "gene_name", "transcript_type","transcript_name", "exon_number", 
+                                                      "exon_id", "tag", "protein_id", "Dbxref"),
+                      sep = ';')
+
+
+
+## remove columns not needed now
+mane$ID <- NULL
+mane$parent <- NULL
+mane$transcript_type <- NULL
+mane$transcript_name <- NULL
+mane$exon_id <- NULL
+mane$Dbxref <- NULL
+
+## remove prefic chrm from chromosome column
+mane$chr <- gsub("chr","", mane$chr)
+
+## remove redundant text on the columns
+mane$gene_id <- gsub(".*=","", mane$gene_id)
+mane$transcript_id <- gsub(".*=","", mane$transcript_id)
+mane$gene_type <- gsub(".*=","", mane$gene_type)
+mane$gene_name <- gsub(".*=","", mane$gene_name)
+mane$exon_number <- gsub(".*=","", mane$exon_number)
+mane$tag <- gsub(".*=","", mane$tag)
+mane$protein_id <- gsub(".*=","", mane$protein_id)
+
+
+
+## filter to MANE_Select only
+mane <- mane[grepl("MANE_Select", mane$tag),]
+
+
+## -> Select only 5'UTRs
+mane_5utr <- mane[mane$category == 'five_prime_UTR',]
+
+
+## Load uORFs
+
+true_uORF <- read.table(file=".../uo_ss_12.12.22.txt")
+#add unique id
+#true_uORF <- subset(true_uORF2, select=-c(kozak, uORF_len))
+true_uORF$id <- 1:19131
+
+#true_uORF <- true_uORF %>% mutate(id2 = ifelse(uORF_len == 6,"ss",ifelse(uORF_len >6, "uo", 0)))
+ 
+## true_uORF sequence contains the full transcript_exons sequence 
+## the exon sequences are collated after each other
+
+## Remove non-MANE_select entries
+## needed for the dataset from Nechama. My predicted uORFs do not have this problem! 
+
+## Limit to the transcript IDs on MANE dataframe -- as it contains only MANE select
+MANE_select_transcript_ids <- mane_5utr$transcript_id
+true_uORF<-  true_uORF[ true_uORF$transcript %in% MANE_select_transcript_ids, ]
+
+
+## Write the uORFs coordinates into a file
+#write.table(true_uORF, file = "uORFs_cDNA_coordinates_2022.07.14.tsv", sep = "\t", row.names = FALSE, col.names = FALSE)
+
+
+## compute the genomic coordinates for the true_uorfs
+
+## 1- get the uORF transcript id 
+#need to add in id's somewhere
+
+t_id <- c()
+chromosome <- c()
+g_start_coord_ref <- c() ## There is a difference between MANE coordinates and REF from USCS, needs -1 to the MANE positions
+g_end_coord_ref <- c()
+strand_mane <- c()
+u_id <- c()
+u_id2 <- c()
+
+
+for (line in 1:nrow(true_uORF)){
+  transcript <- true_uORF$transcript[line]
+  start <- true_uORF$atg_pos[line]
+  end <- true_uORF$stop_pos[line] + 2 ## needed +2 because the coordinate in the dataframe is the 1st nt of the stop codon
+  id <- true_uORF$id[line]
+  id2 <- true_uORF$orf_type[line]
+  
+  ## collect the genomic coordinates of the 5'UTR
+  mane_trans <- mane_5utr[mane_5utr$transcript_id == transcript,]
+  strand <- mane_trans$strand[1] ## selects the first element as the strand is the same for all exons
+
+  
+  ##genomic coordinates
+  genom_coords <- cdna2genomic(start, end, strand, mane_trans)
+  ## output is a vector with genomic start and genomic end coordinates
+  
+  ## independent of the coordinates adjustments
+  t_id <- append(t_id, transcript)
+  chromosome <- append(chromosome, mane_5utr$chr[mane_5utr$transcript_id == transcript][1])
+  strand_mane <- append(strand_mane, strand)
+  u_id <- append(u_id, id)
+  u_id2 <- append(u_id2, id2)
+  
+  ## Adjustment from MANE to refSeq
+  g_start_coord_ref  <- append(g_start_coord_ref, genom_coords[1])
+  g_end_coord_ref <- append(g_end_coord_ref, genom_coords[2])
+
+}
+
+
+uORFs_genomic_coord <- data.frame(t_id, chromosome, g_start_coord_ref, g_end_coord_ref, strand_mane, u_id, u_id2) ## python compatible reference sequence extraction script
+
+
+## save dataframe into a file
+#write.table(uORFs_genomic_coord, file = ".../ORFs_genomic_coord_12.12.22.txt",  sep = '\t')
+
+```
