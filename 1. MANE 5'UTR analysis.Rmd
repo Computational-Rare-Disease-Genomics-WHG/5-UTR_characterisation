@@ -11,14 +11,14 @@ MANE 5'UTR analysis
   2. 5'UTR Length
   3. Introns 
   4. Get UTR sequences
-  5. predicted uAUs 
+  5. predicted uAUGs 
     5.1 uAUG/length 
-  6. predicted uORs
+  6. predicted uORFs
     6.1 uORF per gene 
     6.2 Last uORF - CDS distance 
     6.3 uORF Length
     6.4 Start-Stops
-  7. predictd oORFs
+  7. predicted oORFs
   8. GC content per 5'UTR 
   9. Get genomic coordinate positions for uORFs and Start-stops 
 
@@ -180,7 +180,6 @@ extra_intron$intron_final <- extra_intron$intron1 + 1
 #these genes intron number = exon number
 
 #add these to original set
-#now want to merge this extra_intron list with length_exon but overwrite what legnth_exon has for these..how to do this?
 UTR_length$intron_final <- UTR_length$intron1
 extra2 <- subset(extra_intron, select = c(gene_id, transcript_id, gene_name, UTR_length, exon_number, intron1, intron_final))
 
@@ -204,10 +203,10 @@ more_in <- intron_final %>% filter(intron_final>0)#7066
 #4. Get MANE 5'UTR sequences
 ```{r}
 #PLAN:
-#(this is for mane version 0.92)
-#1. "MANE.GRCh38.v0.92.select_ensembl_genomic.gff.gz" file - filter to mane select, and aggregate to get exons per gene
-#2. get sequences from mane file "MANE.GRCh38.v0.92.select_ensembl_rna.fna.gz". then remove the ones that have no sequences.
+#1. "select_ensembl_genomic.gff.gz" file - filter to mane select, and aggregate to get exons per gene
+#2. get sequences from mane file "select_ensembl_rna.fna.gz". then remove the ones that have no sequences.
 #3. merge 1 and 2 so i have sequences for UTRs which are mane select
+#note this gets 5 and 3 UTR seqs
 
 #1. select_ensembl_genomic.gff.gz - filter
 #bring in file
@@ -259,7 +258,7 @@ names(three)[4]<- "total_exons"
 #2.get sequences
 ##Author: Frederik Heymann Lassen
 ##mane 1
-setwd("/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE downloads/MANE v1")
+setwd("...")
 
 
 ##PART 1 - GET ALL SEQUENCES
@@ -504,7 +503,6 @@ fwrite(five_final, "9.12.22 5' UTR sequences all info.txt", sep = "\t")
 fwrite(three_final, "9.12.22 3' UTR sequences all info.txt", sep = "\t")
 ```
 
-
 #5. uAUG's 
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 ######1. uAUG per gene
@@ -528,13 +526,13 @@ atgstop <- subset(atg_only, select = c(transcript, gene, sequence, atg_count, en
 
 ####2. uAUG/length metric stuff
 #calculate uAUG divided by length of 5UTR to get a measurement 
-#merge with intron_final
+
 atgstop$utr_len <- str_length(atgstop$sequence)
 atgstop$metric <- atgstop$atg_count/atgstop$utr_len
 
 
 #save
-#write.table(atgstop, "/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE Analysis/5' UTR analysis/5UTr paper/code for paper/MANE v1/uaug_metric_m1.txt")
+#write.table(atgstop, ".../uaug_metric_m1.txt")
 ```
 #6. uORFs
 ```{r message=FALSE, error=FALSE, warning=FALSE}
@@ -593,6 +591,7 @@ names(atg_tga)[4] <- "atg_pos"
 names(atg_tga)[5] <- "tga_pos"
 
 ##3. CALCULATE possible UORFS WITHIN EACH ATG+STOP DF
+#take stop pos minus atg pos and divide by 3 to see if an interger ie in frame. If an integer then count as a legit uORF
 
 #tag
 atg_tag$inframe <- (atg_tag$tag_pos - atg_tag$atg_pos)/3
@@ -623,6 +622,7 @@ tgauORF  <- atgtga %>% filter((integer == "TRUE"))
 tgauORF$count_uORF <- 1
 
 ##4. Keep stops nearest ATG
+#assumption is that the ribosome would not read through a stop codon
 
 #subset for ease
 #tag
@@ -640,7 +640,6 @@ total <- rbind(final_1, final_2, final_3)
 true_uORF <- total %>% group_by(transcript, atg_pos) %>% arrange(stop_pos) %>% slice(1)
 #19131 uORFs (incldues startstops)
 
-true_uORF$len <- true_uORF$stop_pos- true_uORF$atg_pos
 ###################ANALYSIS########################
 #####5. number of uORFs per gene
 uORFgene <- true_uORF
@@ -651,7 +650,7 @@ names(uORF_per_gene)[3] <- "uORF_count"
 
 #6461 genes have at least 1 uORF, range 1-61
 #6461/18764 = 34.43296 genes with at least 1 uorf
-#    5.3 uORF Length >> output 
+ 
 
 ##6. Last uORF to CDS distance - reinitiation space
 
@@ -675,12 +674,10 @@ uo1 <- uo_dis %>% filter(orf_type=="uORF")
 mean(uo1$dis)#84.66535
 
 
-#save?
+#save
 #write.table(uORF_laststop, file=".../uorfs reinitiation dis 20.9.22.txt")
 
 
-
-    
 ##7. uORF length
 #the first pos of start codon to last pos of stop codon
 true_uORF$uorf_len <- (true_uORF$stop2 - true_uORF$atg_pos)+1
