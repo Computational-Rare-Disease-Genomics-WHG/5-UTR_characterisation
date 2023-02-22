@@ -7,8 +7,6 @@ output: html_document
 
 Using MANE v1, here we gather various other 5'UTR features and information
 
-Load Libraries
-
 1. PhyloP scores
   1.1 PhyloP scores for 5UTR
   1.2 uORF starts PhyloP
@@ -43,16 +41,12 @@ library(seqinr)
 
 #######################1. 5UTR mean PhyloP score#########################
 
-#(this code gets 3UTRs too)
-
 #1. get data ready
 df1<-read.gff(".../MANE.GRCh38.v1.0.ensembl_genomic.gff", na.strings = c(".", "?"), GFF3 = TRUE)[c(1,3:5,9)]
 
 #Calculate mean 5' and 3' length
 fives<-subset(df1, type=="five_prime_UTR")
-threes<-subset(df1, type=="three_prime_UTR")
 mean_fives<-(((sum(fives$end)) - (sum(fives$start)))/(nrow(fives)))
-mean_threes<-(((sum(threes$end)) - (sum(threes$start)))/(nrow(threes)))
 
 ##2. Obtain and analyse PhyloP scores##
 #do this if not working and needs updates
@@ -113,10 +107,10 @@ write.table(phylop_final2, ".../five_utr_ph_m1_10.1.23.txt")
 
 #yavailableGScores() #Available data
 phast <- getGScores("phyloP100way.UCSC.hg38")
-#save to use
 
-#need a df of pred uORFs with positions
-###change to correct input when finish mane file
+
+#bring in the df of predicted uORFs with positions
+
 uorf_gen <- read.delim(file=".../ORFs_genomic_coord_12.12.22.txt") 
 
 ###########uorf starts#################
@@ -170,7 +164,7 @@ uaug_neg2 <- subset(uorf_neg, select=-c(phylop))
 
 
 #bind  pos and neg together to get one df with all uorf starts phylop
-#the uorf starts may be split by intron so bit of fiddling to get the exact bits
+#the uorf gneomic coords can contain introns so bit of fiddling to get the exact bits
 
 ###1. phylop for uorf starts
 starts_pos <- read.table(".../uorf start pos phylop m1 8.1.23.txt")
@@ -272,7 +266,7 @@ uorf_neg_st2 <- subset(uorf_neg_st, select=-c(phylop))
 ####PHYLOP FOR UORF stops -bind pos and neg together, and clean data
 ##POS
 end_pos <- read.table(".../uorf end pos phylop 9.1.23.txt")
-#need to think of way to identify which is the one we want.. help. needs to be TAA/TAG/TGA i guess thats a strt
+#using uorf position coords, pull the ends of uORFs and check that its stop codons - needs to be TAA/TAG/TGA. if it isnt, exclude
 
 end_pos$chromosome <- paste0("chr", end_pos$chromosome)
 end_pos$stop <- as.character(Biostrings::getSeq(BSgenome.Hsapiens.UCSC.hg38, end_pos$chromosome, end_pos$g_end_coord_ref-2, end_pos$g_end_coord_ref))
@@ -281,7 +275,7 @@ table(end_pos$stop)
 end_pos2 <- end_pos%>% filter(stop %in% c("TAA", "TAG", "TGA"))
 #check
 #table(end_pos2$stop)
-#stunning. now do neg
+
 
 ###NEG
 end_neg <- read.table(".../uorf end neg phylop m1 9.1.23.txt")
@@ -358,7 +352,7 @@ phylop2 <- rbind(uorf_start, uorf_end, ss)
 #write.table(phylop2,".../uorf_ss phylop m1 10.1.23.txt")
 
 ```
-#2. CADD scores - done
+#2. CADD scores
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #scores of variant deleteriousness for all possible variants at each position
 
@@ -605,9 +599,10 @@ cadd_scores <- rbind(cadd_final, uorf_cadd, start_stop)
 #write.table(cadd_scores, ".../cadd_all_m1_17.12.22.txt")
 
 ```
-#3. RNA fold - done
+#3. RNA fold
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #https://www.tbi.univie.ac.at/RNA/
+#download to use as a tool in terminal
 #the score its giving is: minimum free energy for the optimal secondary structure (kcal/mol) units.
 
 ##1. prepare FASTA file
@@ -659,8 +654,6 @@ five <- subset(five_UTR_seqs.df, select=c(gene, sequence, transcript))
 energyscore <- merge(energy_score, five, by="gene") #18766
 energyscore$utr_len <- str_length(energyscore$sequence)
 
-
-#check gene TMSB15B
 #remove dup transcript
 
 energyscore2 <- energyscore[!duplicated(energyscore)]
@@ -673,7 +666,7 @@ na <- subset(energyscore2, is.na(energy))
 #save
 #write.table(energyscore2,"freefold energyscore m1 13.12.22.txt")
 ```
-#4. CAGE peak data - done
+#4. CAGE peak data
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #https://fantom.gsc.riken.jp/5/data/
 #CAGE peak based annotation table of robust CAGE peaks for human samples
@@ -735,7 +728,7 @@ cage_gene <- merge(cage, mane2, by="hgnc_id")#16982
 #write.table(cage_gene, ".../cage m1 13.12.22.txt")
 
 ```
-#5. Ribo-seq uORFs -done 
+#5. Ribo-seq uORFs 
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #from Chothani SP et al, A high-resolution map of human RNA translation. Mol Cell. 2022 Aug 4;82(15):2885-2899.e8. doi: 10.1016/j.molcel.2022.06.023. Epub 2022 Jul 15. PMID: 35841888.
 
@@ -747,6 +740,7 @@ cage_gene <- merge(cage, mane2, by="hgnc_id")#16982
 smorf1 <- read.delim(".../all_final_orfCDS.txt", header = FALSE, sep="\t")
 smorf2 <- read.delim(".../final_orfs_filt_v5.txt")
 
+####contents of analysis
 #1. overlap smorf and mane
 #2. smorfs across leouf deciles - get smorfs per genes
 #3. smorf uorf start codons
@@ -1000,7 +994,7 @@ pie(count, labels = labels, col= colors)
 # results from groupings put into excel to generate automatic pie chart for ease by Nechama #
 
 
-#2. smorfs across leouf deciles - get smorfs per genes
+#2. for smorfs across leouf deciles - get smorfs per genes
 
 #i wnt smorfs per gene (uORFs, all not just canonical)
 uorf <- smorf2 %>% filter(iORF_type == "uORF")
@@ -1024,6 +1018,7 @@ starts <- data.frame(table(uorf$starts))
 starts$total <- sum(starts$Freq)
 starts$perc <- starts$Freq/starts$total *100
 
+#plot to see proportions of uORF start codons in this ribo-seq set
 ggplot(starts, aes(reorder(Var1, perc),perc))+geom_bar(stat = "identity",fill="navy") +
   coord_flip() + theme_bw() + ggtitle("Start Codon Proportions in smORF uORFs")+ylab("Percentage")+xlab("Start Codon")
 
@@ -1033,7 +1028,7 @@ ggplot(starts, aes(reorder(Var1, perc),perc))+geom_bar(stat = "identity",fill="n
 
 
 #4. Codon optimality for smORFs
-# need to get the smORF uORF codons using their locations - remember they are split by introns.
+# need to get the smORF uORF codons using their locations - remember they are split by introns.so if a ribo-seq uorf has an intron in it, it is given 2 entries with same iorf_id.
 # part 1: get smorf uorf codons (pos and neg seperately). this is through a loop to stitch the uorfs which are seperated by introns
 # part 2: convert smorf uorf codons into codon values acc to codon optimality.
 
@@ -1224,7 +1219,7 @@ nrow(smutr)/nrow(length_exon)
 #range 1-11
 
 ```
-#6. Translational Efficiency (Noderer Et al 2014) - done
+#6. Translational Efficiency (Noderer Et al 2014) 
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 # Norderer 2014 TE data - Noderer WL, Flockhart RJ, Bhaduri A, Diaz de Arce AJ, Zhang J, Khavari PA, et al. Quantitative analysis of mammalian translation initiation sites by FACS-seq. Mol Syst Biol. 2014 Aug 28;10(8):748
 #"Supplementary Table S2. TIS efficiency reference table. TIS efficiency values for all 65,536 possible AUG containing TIS sequence. Values were obtained with the dinucleotide PWM. 95% confidence intervals are provided."
