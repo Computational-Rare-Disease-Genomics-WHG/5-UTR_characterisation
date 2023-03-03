@@ -3,7 +3,7 @@ title: "MANE 5'UTR Analsis"
 output: rmarkdown::github_document
 ---
 
-```{r}
+
 #Contents:
   #1. Prepare MANE v1 data
 
@@ -21,12 +21,7 @@ output: rmarkdown::github_document
   #7. predicted oORFs
   #8. GC content per 5'UTR 
   #9. Get genomic coordinate positions for uORFs and Start-stops 
-```
 
-
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(eval = FALSE)
-```
 
 #load libraries
 ```{r}
