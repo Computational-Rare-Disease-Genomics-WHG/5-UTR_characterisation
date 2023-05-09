@@ -42,7 +42,7 @@ Negative scores — Measure acceleration, which is faster evolution than expecte
 #1. get data ready
 df1 <-
   read.gff(
-    ".../MANE.GRCh38.v1.0.ensembl_genomic.gff",
+    "MANE.GRCh38.v1.0.ensembl_genomic.gff",
     na.strings = c(".", "?"),
     GFF3 = TRUE
   )[c(1, 3:5, 9)]
@@ -77,8 +77,6 @@ for (i in 1:(nrow(fives))) {
 }
 fives$PGS <- as.numeric(fives$PGS)
 
-#ran in terminal as takes a while
-fives <- read.table("/Users/nwieder/phylop/fives.txt")
 
 #split attributes out
 five_split <- cSplit(fives, "attributes", ";")
@@ -109,7 +107,7 @@ phylop_final2 <-
 
 ##note, PGS == phylop score
 #save
-write.table(phylop_final2, ".../five_utr_ph_m1_10.1.23.txt")
+write.table(phylop_final2, "five_utr_ph_m1_10.1.23.txt")
 
 #######################2. uORF Starts Phylop########################
 #phylop is per base so get for the ATG and mean of the 3 bases
@@ -124,7 +122,7 @@ phast <- getGScores("phyloP100way.UCSC.hg38")
 
 #bring in the df of predicted uORFs with positions
 
-uorf_gen <- read.delim(file = ".../ORFs_genomic_coord_12.12.22.txt") 
+uorf_gen <- read.delim(file = "ORFs_genomic_coord_12.12.22.txt") 
 
 ###########uorf starts#################
 #do + and - strands seperately
@@ -188,7 +186,7 @@ uaug_neg <- as.numeric(uorf_neg$phylop)
 uorf_neg$phylop2 <- uaug_neg
 uaug_neg2 <- subset(uorf_neg, select = -c(phylop))
 
-#write.table(uaug_neg2,".../uorf start neg phylop m1 8.1.23.txt")
+#write.table(uaug_neg2,"uorf start neg phylop m1 8.1.23.txt")
 
 
 
@@ -196,7 +194,7 @@ uaug_neg2 <- subset(uorf_neg, select = -c(phylop))
 #the uorf gneomic coords can contain introns so bit of fiddling to get the exact bits
 
 ###1. phylop for uorf starts
-starts_pos <- read.table(".../uorf start pos phylop m1 8.1.23.txt")
+starts_pos <- read.table("uorf start pos phylop m1 8.1.23.txt")
 starts_pos <- starts_pos %>% filter(strand_mane == "+")
 
 #now these are uorfs that are split by introns, so i only want the ones which start with ATG
@@ -219,7 +217,7 @@ table(starts_pos$start)
 starts_pos2 <- starts_pos %>% filter(start == "ATG")
 
 #now do neg
-starts_neg <- read.table(".../uorf start neg phylop m1 8.1.23.txt")
+starts_neg <- read.table("uorf start neg phylop m1 8.1.23.txt")
 starts_neg$chromosome <- paste0("chr", starts_neg$chromosome)
 #test run to see which end i want
 #i think its the end minus 2
@@ -329,7 +327,7 @@ uorf_neg_st2 <- subset(uorf_neg_st, select = -c(phylop))
 
 ####PHYLOP FOR UORF stops -bind pos and neg together, and clean data
 ##POS
-end_pos <- read.table(".../uorf end pos phylop 9.1.23.txt")
+end_pos <- read.table("uorf end pos phylop 9.1.23.txt")
 #using uorf position coords, pull the ends of uORFs and check that its stop codons - needs to be TAA/TAG/TGA. if it isnt, exclude
 
 end_pos$chromosome <- paste0("chr", end_pos$chromosome)
@@ -350,7 +348,7 @@ end_pos2 <- end_pos %>% filter(stop %in% c("TAA", "TAG", "TGA"))
 
 
 ###NEG
-end_neg <- read.table(".../uorf end neg phylop m1 9.1.23.txt")
+end_neg <- read.table("uorf end neg phylop m1 9.1.23.txt")
 
 end_neg$chromosome <- paste0("chr", end_neg$chromosome)
 #start plus 2
@@ -376,15 +374,15 @@ uorf_end_phy <- rbind(end_neg2, end_pos2) #yas
 #these coords will run across introns
 
 #make one df with phylop for starts and ends, then split into uORFs and ss's
-start_pos <- read.table(".../uorf start pos phylop m1 8.1.23.txt")
+start_pos <- read.table("uorf start pos phylop m1 8.1.23.txt")
 names(start_pos)[10] <- "ph_start"
 
-start_neg <- read.table(".../uorf start neg phylop m1 8.1.23.txt")
+start_neg <- read.table("uorf start neg phylop m1 8.1.23.txt")
 names(start_neg)[11] <- "ph_start"
 
-end_pos <- read.table(".../uorf end pos phylop 9.1.23.txt")
+end_pos <- read.table("uorf end pos phylop 9.1.23.txt")
 names(end_pos)[10] <- "ph_end"
-end_neg <- read.table(".../uorf end neg phylop m1 9.1.23.txt")
+end_neg <- read.table("uorf end neg phylop m1 9.1.23.txt")
 names(end_neg)[10] <- "ph_end"
 
 #split into uorf and ss
@@ -429,7 +427,7 @@ ss <- subset(ss_start, select = -c(phylop_st, phylop_end))
 ss$group <- "Start-Stop"
 
 phylop2 <- rbind(uorf_start, uorf_end, ss)
-#write.table(phylop2,".../uorf_ss phylop m1 10.1.23.txt")
+#write.table(phylop2,"uorf_ss phylop m1 10.1.23.txt")
 
 ```
 #2. CADD scores
@@ -438,7 +436,7 @@ scores of variant deleteriousness for all possible variants at each position
 ##1. Prepare files to be run on cluster
 
 #want 2 files: 1  with chr start and end, 1 with strand and exon
-mane_five <- read.table(".../mane_five.txt")
+mane_five <- read.table("mane_five.txt")
 
 five <- subset(mane_five, select = c(V1, V4, V5))
 #rename
@@ -447,7 +445,7 @@ names(five)[2] <- "start"
 names(five)[3] <- "end"
 
 #save as TSV
-#write_tsv(five, ".../MANE v1_five.tsv")
+#write_tsv(five, "MANE v1_five.tsv")
 
 
 #make another one with some more info
@@ -468,7 +466,7 @@ names(five_more)[5] <- "transcript_id"
 names(five_more)[6] <- "exon_number"
 
 #save as tsv
-#write_tsv(five_more, ".../MANE v1_five_more.tsv")
+#write_tsv(five_more, "MANE v1_five_more.tsv")
 
 
 ####run on cluster####
@@ -496,7 +494,7 @@ tabix${
 
 
 #2. Bring data back into R and sort
-cadd <- read.delim(".../CADD m1.txt", header = FALSE)
+cadd <- read.delim("CADD m1.txt", header = FALSE)
 
 #for each position,  i want the average CADD score
 #rename
@@ -504,7 +502,7 @@ cadd <- setNames(cadd, c("chr", "pos", "ref", "alt", "cadd", "phred"))
 
 cadd2 <-
   cadd %>% group_by(chr, pos) %>% summarise(cadd_mean = mean(cadd))
-#write.table(cadd2, ".../cadd_scores_m1.txt")
+write.table(cadd2, ".../cadd_scores_m1.txt")
 #this is a score for each position within the 5'UTR, so I need to compute for the sections i want
 
 ###CADD for 5'UTR (mean)
@@ -518,8 +516,8 @@ cadd2 <-
 #exon file needs to be the five_more data above
 five_more$chr <- str_replace(five_more$chr, "chr", "")
 #save: write.table(five_more, ".../exon_m1.txt")
-exon <- read.table(".../exon_m1.txt")
-cadd <- read.table(".../cadd_scores_m1.txt")
+exon <- read.table("exon_m1.txt")
+cadd <- read.table("cadd_scores_m1.txt")
 
 for (r in 1:nrow(exon)) {
   c <- exon$chr[r]
@@ -532,7 +530,8 @@ for (r in 1:nrow(exon)) {
   exon$cadd[r] <- mean(cadd_score)
 }
 
-write.table(exon, ".../fiveutr_cadd_m1.txt")
+write.table(exon, "fiveutr_cadd_m1.txt")
+
 #R < .../cadd_5UTRs_m1.R --save
 
 
@@ -542,8 +541,8 @@ write.table(exon, ".../fiveutr_cadd_m1.txt")
 #R < .../uorf_st_end_cadd.R --save
 #bring in uorf genomic coords file
 
-cadd <- read.table(".../cadd_scores_m1.txt")
-uorf_gen <- read.table(".../ORFs_genomic_coord_12.12.22.txt")
+cadd <- read.table("cadd_scores_m1.txt")
+uorf_gen <- read.table("ORFs_genomic_coord_12.12.22.txt")
 
 #need the positions for the start/end of uORF and need to do the strands seperately
 
@@ -564,7 +563,7 @@ for (i in 1:nrow(uorf_pos)) {
 }
 
 uorf_cadd_starts <- uorf_pos
-write.table(uorf_cadd_starts, ".../uorf_pos_starts_m1.txt")
+write.table(uorf_cadd_starts, "uorf_pos_starts_m1.txt")
 
 ###2. uorf neg starts###
 uorf_neg <- uorf_gen %>% filter(strand_mane == "-")
@@ -583,7 +582,7 @@ for (q in 1:nrow(uorf_neg)) {
 }
 neg_starts <- uorf_neg
 
-write.table(neg_starts, ".../uorf_neg_starts_m1.txt")
+write.table(neg_starts, "uorf_neg_starts_m1.txt")
 
 
 ###3. uorf pos ends#####
@@ -599,7 +598,7 @@ for (f in 1:nrow(uorf_pos)) {
 }
 uorf_cadd_ends <- uorf_pos
 
-write.table(uorf_cadd_ends, ".../uorf_pos_ends_m1.txt")
+write.table(uorf_cadd_ends, "uorf_pos_ends_m1.txt")
 
 
 
@@ -619,17 +618,17 @@ for (w in 1:nrow(uorf_neg)) {
 }
 
 neg_end <- uorf_neg
-write.table(neg_end, ".../uorf_neg_ends_m1.txt")
+write.table(neg_end, "uorf_neg_ends_m1.txt")
 
 
 #######bring all the 4 df for uorf start and ends back into R and make into 1 useable df#####
 #bring all data in once run in terminal
 
 
-start_pos <- read.table(".../uorf_pos_starts_m1.txt")
-start_neg <- read.table(".../uorf_neg_starts_m1.txt")
-end_pos <- read.table(".../uorf_pos_ends_m1.txt")
-end_neg <- read.table(".../uorf_neg_ends_m1.txt")
+start_pos <- read.table("uorf_pos_starts_m1.txt")
+start_neg <- read.table("uorf_neg_starts_m1.txt")
+end_pos <- read.table("uorf_pos_ends_m1.txt")
+end_neg <- read.table("uorf_neg_ends_m1.txt")
 
 
 start_pos$group <- "uORF Start"
@@ -681,7 +680,7 @@ start_stop <- rbind(ssp2, ssn2)
 
 #bind into 1
 #bring full five utr cadd in
-fiveutr <- read.table(".../fiveutr_cadd_m1.txt")
+fiveutr <- read.table("fiveutr_cadd_m1.txt")
 names(fiveutr)[5] <- "t_id"
 #get full cadd score for each transcript
 cadd_final <-
@@ -693,7 +692,7 @@ uorf_cadd <- subset(uorf_cadd, select = -c(u_id2))
 
 cadd_scores <- rbind(cadd_final, uorf_cadd, start_stop)
 #save
-#write.table(cadd_scores, ".../cadd_all_m1_17.12.22.txt")
+#write.table(cadd_scores, "cadd_all_m1_17.12.22.txt")
 
 ```
 #3. RNA fold
@@ -705,7 +704,7 @@ cadd_scores <- rbind(cadd_final, uorf_cadd, start_stop)
 ##1. prepare FASTA file
 #bring in 5'UTR sequences
 UTR_sequences.df <-
-  read.table(".../9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
+  read.table("9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
 #subset relevant cols
 five_UTR_seqs.df <-
   data.frame(
@@ -737,7 +736,7 @@ rnafold / Users / nwieder / m1_utrseqsFASTA.fasta > min_energy_m1.txt
 #takes ~45 mins to run
 
 ###3. Bring back to R to analyse
-energy <- phylotools::read.fasta(".../min_energy_m1.txt")
+energy <- phylotools::read.fasta("min_energy_m1.txt")
 
 #split by "(-"
 library(splitstackshape)
@@ -790,7 +789,7 @@ na <- subset(energyscore2, is.na(energy))
 #count the number of peaks per HGNC ID
 data <-
   read.table(
-    ".../hg19.cage_peak_phase1and2combined_ann.txt",
+    "hg19.cage_peak_phase1and2combined_ann.txt",
     header = TRUE,
     sep = "\t"
   )
@@ -826,7 +825,7 @@ cage$hgnc_id <- sub(".*HGNC:", "", cage$hgnc_id)
 
 
 #bring in MANE summary file and merge to get transcript/gene IDs
-mane_summary <- read.delim(".../MANE.GRCh38.v1.0.summary.txt.gz")
+mane_summary <- read.delim("MANE.GRCh38.v1.0.summary.txt.gz")
 #remove clinical transcripts
 mane_selec <- mane_summary %>% filter(MANE_status == "MANE Select")
 
@@ -850,7 +849,7 @@ cage_gene <- merge(cage, mane2, by = "hgnc_id")#16982
 
 
 #save
-#write.table(cage_gene, ".../cage m1 13.12.22.txt")
+#write.table(cage_gene, "cage m1 13.12.22.txt")
 
 ```
 #5. Ribo-seq uORFs 
@@ -863,10 +862,10 @@ cage_gene <- merge(cage, mane2, by = "hgnc_id")#16982
 #smorf2 availble @ https://smorfs.ddnetbio.com/
 
 smorf1 <-
-  read.delim(".../all_final_orfCDS.txt",
+  read.delim("all_final_orfCDS.txt",
              header = FALSE,
              sep = "\t")
-smorf2 <- read.delim(".../final_orfs_filt_v5.txt")
+smorf2 <- read.delim("final_orfs_filt_v5.txt")
 
 ####contents of analysis
 #1. overlap smorf and mane
@@ -1205,13 +1204,13 @@ smorf_gene <-
 names(smorf_gene)[2] <- "number_uORF"
 
 #save
-#write.table(smorf_gene, ".../smorf_gene.txt")
+#write.table(smorf_gene, "smorf_gene.txt")
 
 
 
 #3. smorf uORF start codons
 uorf <- smorf2 %>% filter(iORF_type == "uORF")
-#write.table(uORFs, ".../ribo_seq_uo.txt")
+#write.table(uORFs, "ribo_seq_uo.txt")
 
 starts <- data.frame(table(uorf$starts))
 starts$total <- sum(starts$Freq)
@@ -1239,7 +1238,7 @@ ggplot(starts, aes(reorder(Var1, perc), perc)) + geom_bar(stat = "identity", fil
 #open in excel, and save as a text file
 
 forrest <-
-  read.table(".../hela forrest codonoptimal.txt", header = TRUE)
+  read.table("hela forrest codonoptimal.txt", header = TRUE)
 #turn opt and non-opt into numeric vals
 hela <-
   forrest %>% mutate(id2 = ifelse(HeLa_IsOpt == "NonOpt", "0", ifelse(HeLa_IsOpt ==
@@ -1466,7 +1465,7 @@ u <- unique(ribo_opt$iORF_id)#5052 unique uORFs
 ribo_opt2 <- ribo_opt[!duplicated(ribo_opt$iORF_id),]
 
 #save external
-#write.table(ribo_opt2,".../smorf uorf codon optimality.txt")
+#write.table(ribo_opt2,"smorf uorf codon optimality.txt")
 
 
 ##5. 5'utrs with smorf in
@@ -1491,15 +1490,15 @@ nrow(smutr) / nrow(length_exon)
 #The higher the score the stronger the TE is
 
 TE_norderer <-
-  read.delim(".../norderer TE 6.4.22.txt",
+  read.delim("norderer TE 6.4.22.txt",
              sep = '\t',
              header = TRUE)
 
 #bring in my uATG data and get this sequence range for each and then can merge them to get the new "kozak" strength for them.
 #for AUGs that are too close to the TSS exclude, because the ribosome wouldnt read them. for the ones that are too close to CDS, extract and deal with separately
 
-oorf <- read.table(".../oorf_12.12.22.txt") #3416
-uo <- read.table(".../uo_ss_12.12.22.txt")#19131 uorf and start-stops
+oorf <- read.table("oorf_12.12.22.txt") #3416
+uo <- read.table("uo_ss_12.12.22.txt")#19131 uorf and start-stops
 
 #make one df that just has what we need
 oorf$orf_type <- "oorf"
@@ -1534,7 +1533,7 @@ cds_close <- ORFs2 %>% filter(cdsdis < 2)#51 where TE overlaps with CDS
 #i want end of UTR position. then i can get my code to pull out UTR end plus 2 bases ..
 ##up to here
 #MANE.GRCh38.v0.92.select_ensembl_genomic.gff
-five_utrs <- read.table(".../mane_five.txt")
+five_utrs <- read.table("mane_five.txt")
 names(five_utrs)[15] <- "chr"
 
 #aggregate to keep last stop position for an exon
@@ -1628,7 +1627,7 @@ ORF_te2 <- merge(TE_norderer, orfs_te, by = "TE_range2")#21881
 
 #save TE per uAUG
 #the higher the efficiency the more likely initiation
-#write.table(ORF_te2, ".../orf_TE_noderer_m1.txt")
+#write.table(ORF_te2, "orf_TE_noderer_m1.txt")
 
 ```
 

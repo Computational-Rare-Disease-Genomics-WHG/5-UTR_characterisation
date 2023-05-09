@@ -35,13 +35,13 @@ library(tidyverse)
 
 ```{r}
 #bring in summary file and remove any clinical transcripts
-mane_summary <- read.delim(".../MANE.GRCh38.v1.0.summary.txt.gz")
+mane_summary <- read.delim("MANE.GRCh38.v1.0.summary.txt.gz")
 #remove plus clinical transcripts
 mane_selec <- mane_summary %>% filter(MANE_status == "MANE Select")
 
 #now using these transcripts information, pull the full data info from the gff file
 select_ensembl_genomic <-
-  read.delim(".../MANE.GRCh38.v1.0.ensembl_genomic.gff", header = FALSE)
+  read.delim("MANE.GRCh38.v1.0.ensembl_genomic.gff", header = FALSE)
 ensembl_genomic <- select_ensembl_genomic
 five_prime_UTRs.df <-
   subset(ensembl_genomic, ensembl_genomic$V3 == "five_prime_UTR")
@@ -69,7 +69,7 @@ names(five_UTRs_split)[19] <- "MANE_tag"
 names(mane_selec)[8] <- "transcript_id"
 mane_five <- merge(mane_selec, five_UTRs_split, by = "transcript_id")
 #save
-#write.table(mane_five, ".../mane_five.txt")
+#write.table(mane_five, "mane_five.txt")
 
 ```
 #2. 5'UTR Full Exon Length
@@ -96,7 +96,7 @@ mean(UTR_length$UTR_length)#202bp 201.6124
 median(UTR_length$UTR_length)#136bp
 
 #how many have no 5UTRs?
-summary_mane <- read.delim(".../MANE.GRCh38.v1.0.summary.txt.gz")
+summary_mane <- read.delim("MANE.GRCh38.v1.0.summary.txt.gz")
 names(summary_mane)[2] <- "gene_id"
 
 no_utr <- anti_join(summary_mane, UTR_length, by = "gene_id")#298
@@ -249,7 +249,7 @@ intron_final <- rbind(intron_data, extra2)#18764
 #remove intron1 col
 intron_final <- subset(intron_final, select = -c(intron1))
 
-#write.table(intron_final, file=".../length_introns_12.12.22.txt")
+#write.table(intron_final, file="length_introns_12.12.22.txt")
 
 #genes with 1+ intron
 more_in <- intron_final %>% filter(intron_final > 0)#7066
@@ -727,7 +727,7 @@ fwrite(three_final, "9.12.22 3' UTR sequences all info.txt", sep = "\t")
 ######1. uAUG per gene
 
 UTR_sequences.df <-
-  read.table(".../9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
+  read.table("9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
 #subset relevant cols
 five_UTR_seqs.df <-
   data.frame(
@@ -995,7 +995,7 @@ f_ss$orf_type <- "start-stop"
 
 
 orf <- rbind(f_uo, f_ss)
-#write.table(orf, ".../uo_ss_12.12.22.txt")
+#write.table(orf, "uo_ss_12.12.22.txt")
 ```
 
 #7. oORFs
@@ -1104,8 +1104,8 @@ frame$percent <- frame$Freq / (nrow(final_oORF)) * 100
 
 
 #make one df of aug type per gene (frame doesnt matter)
-uo_ss <- read.table(".../uo_ss_12.12.22.txt")
-oorf <- read.table(".../oorf_12.12.22.txt")
+uo_ss <- read.table("uo_ss_12.12.22.txt")
+oorf <- read.table("oorf_12.12.22.txt")
 
 
 #aggregate by gene
@@ -1117,7 +1117,7 @@ oorf2 <- oorf %>% group_by(transcript) %>% summarise(n())#2806
 oorf2$orf_type <- "oORF"
 names(oorf2)[2] <- "count"
 orfgene <- rbind(orf_gene, oorf2)#10207
-#write.table(orfgene, ".../orf_gene 14.12.22.txt")
+#write.table(orfgene, "orf_gene 14.12.22.txt")
 
 #genes with at least 1 oorf
 nrow(oorf2)/nrow(length_exon)
@@ -1143,7 +1143,7 @@ gc_save <-
 names(gc_save)[5] <- "gc_percent"
 
 #save
-#write.table(gc_save, ".../man1_gc.txt")
+#write.table(gc_save, "man1_gc.txt")
 ```
 #9. Get genomic coordinate positions for uORFs and Start-stops
 ```{r message=FALSE, error=FALSE, warning=FALSE}
@@ -1282,7 +1282,7 @@ cdna2genomic <- function(start, end, strand, mane_transcript) {
 
 ## open MANE file
 mane_filename <-
-  "/Users/nwieder/OneDrive - Nexus365/NWIEDER DPhil Projects/1_5'UTR_summary_stats/MANE downloads/MANE v1/MANE.GRCh38.v1.0.ensembl_genomic.gff"
+  "MANE.GRCh38.v1.0.ensembl_genomic.gff"
 
 mane <- readfile(mane_filename, FALSE)
 colnames(mane) <-
@@ -1357,7 +1357,7 @@ mane_5utr <- mane[mane$category == 'five_prime_UTR', ]
 
 ## Load uORFs
 
-true_uORF <- read.table(file = ".../uo_ss_12.12.22.txt")
+true_uORF <- read.table(file = "uo_ss_12.12.22.txt")
 #add unique id
 #true_uORF <- subset(true_uORF2, select=-c(kozak, uORF_len))
 true_uORF$id <- 1:19131
@@ -1440,6 +1440,6 @@ uORFs_genomic_coord <-
 
 
 ## save dataframe into a file
-#write.table(uORFs_genomic_coord, file = ".../ORFs_genomic_coord_12.12.22.txt",  sep = '\t')
+#write.table(uORFs_genomic_coord, file = "ORFs_genomic_coord_12.12.22.txt",  sep = '\t')
 
 ```
