@@ -54,6 +54,3 @@ gsutil cp gs://gcp-public-data--gnomad/release/2.1.1/constraint/gnomad.v2.1.1.lo
 # Unzip the files as the raw files a bgzipeed
 bgzip -d data/pipeline/GNOMAD/gnomad.v2.1.1.lof_metrics.by_transcript.txt.bgz
 
-### Download Developmental Disorder Gene List ###
-
-### Download Cancer Gene lists ###
