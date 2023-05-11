@@ -249,7 +249,7 @@ intron_final <- rbind(intron_data, extra2)#18764
 #remove intron1 col
 intron_final <- subset(intron_final, select = -c(intron1))
 
-#write.table(intron_final, file="length_introns_12.12.22.txt")
+#write.table(intron_final, file="length_introns.txt")
 
 #genes with 1+ intron
 more_in <- intron_final %>% filter(intron_final > 0)#7066
@@ -718,8 +718,8 @@ three_final <- merge(threeprime2, three, by = "transcript")
 #16706
 
 # save them:
-fwrite(five_final, "9.12.22 5' UTR sequences all info.txt", sep = "\t")
-fwrite(three_final, "9.12.22 3' UTR sequences all info.txt", sep = "\t")
+fwrite(five_final, "5' UTR sequences all info.txt", sep = "\t")
+fwrite(three_final, "3' UTR sequences all info.txt", sep = "\t")
 ```
 
 #5. uAUG's 
@@ -727,7 +727,7 @@ fwrite(three_final, "9.12.22 3' UTR sequences all info.txt", sep = "\t")
 ######1. uAUG per gene
 
 UTR_sequences.df <-
-  read.table("9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
+  read.table("5' UTR sequences all info.txt", header = TRUE)#18764
 #subset relevant cols
 five_UTR_seqs.df <-
   data.frame(
@@ -760,7 +760,7 @@ atgstop$metric <- atgstop$atg_count / atgstop$utr_len
 
 
 #save
-#write.table(atgstop, ".../uaug_metric_m1.txt")
+#write.table(atgstop, "uaug_metric_m1.txt")
 ```
 #6. uORFs
 uORF definition: an ATG with the first stop in-frame to it. Can have multiple ATGs "using" the same stop
@@ -964,7 +964,7 @@ mean(uo1$dis)#84.66535
 
 
 #save
-#write.table(uORF_laststop, file=".../uorfs reinitiation dis 20.9.22.txt")
+#write.table(uORF_laststop, file="uorfs reinitiation dis.txt")
 
 
 ##7. uORF length
@@ -995,7 +995,7 @@ f_ss$orf_type <- "start-stop"
 
 
 orf <- rbind(f_uo, f_ss)
-#write.table(orf, "uo_ss_12.12.22.txt")
+#write.table(orf, "uo_ss.txt")
 ```
 
 #7. oORFs
@@ -1100,12 +1100,12 @@ for (qw in 1:nrow(final_oORF)) {
 frame <- data.frame(table(final_oORF$frame))
 frame$percent <- frame$Freq / (nrow(final_oORF)) * 100
 #save - oorf per gene and individual oORFs?
-#write.table(final_oORF, ".../oorf_12.12.22.txt")
+#write.table(final_oORF, "oorf.txt")
 
 
 #make one df of aug type per gene (frame doesnt matter)
-uo_ss <- read.table("uo_ss_12.12.22.txt")
-oorf <- read.table("oorf_12.12.22.txt")
+uo_ss <- read.table("uo_ss.txt")
+oorf <- read.table("oorf.txt")
 
 
 #aggregate by gene
@@ -1117,7 +1117,7 @@ oorf2 <- oorf %>% group_by(transcript) %>% summarise(n())#2806
 oorf2$orf_type <- "oORF"
 names(oorf2)[2] <- "count"
 orfgene <- rbind(orf_gene, oorf2)#10207
-#write.table(orfgene, "orf_gene 14.12.22.txt")
+#write.table(orfgene, "orf_gene.txt")
 
 #genes with at least 1 oorf
 nrow(oorf2)/nrow(length_exon)
@@ -1357,7 +1357,7 @@ mane_5utr <- mane[mane$category == 'five_prime_UTR', ]
 
 ## Load uORFs
 
-true_uORF <- read.table(file = "uo_ss_12.12.22.txt")
+true_uORF <- read.table(file = "uo_ss.txt")
 #add unique id
 #true_uORF <- subset(true_uORF2, select=-c(kozak, uORF_len))
 true_uORF$id <- 1:19131
@@ -1440,6 +1440,6 @@ uORFs_genomic_coord <-
 
 
 ## save dataframe into a file
-#write.table(uORFs_genomic_coord, file = "ORFs_genomic_coord_12.12.22.txt",  sep = '\t')
+#write.table(uORFs_genomic_coord, file = "ORFs_genomic_coord.txt",  sep = '\t')
 
 ```
