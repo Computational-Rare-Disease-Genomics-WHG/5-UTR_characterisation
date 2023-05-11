@@ -107,7 +107,7 @@ phylop_final2 <-
 
 ##note, PGS == phylop score
 #save
-write.table(phylop_final2, "five_utr_ph_m1_10.1.23.txt")
+write.table(phylop_final2, "five_utr_ph_m1.txt")
 
 #######################2. uORF Starts Phylop########################
 #phylop is per base so get for the ATG and mean of the 3 bases
@@ -122,7 +122,7 @@ phast <- getGScores("phyloP100way.UCSC.hg38")
 
 #bring in the df of predicted uORFs with positions
 
-uorf_gen <- read.delim(file = "ORFs_genomic_coord_12.12.22.txt") 
+uorf_gen <- read.delim(file = "ORFs_genomic_coord.txt") 
 
 ###########uorf starts#################
 #do + and - strands seperately
@@ -154,7 +154,7 @@ uorf_pos$phylop2 <- uaug_ph
 uaug_phylop <- subset(uorf_pos, select = -c(phylop))
 
 #save so dont need to re run as takes a long time
-#write.table(uaug_phylop,"uorf start pos phylop 31.7.22.txt")
+#write.table(uaug_phylop,"uorf start pos phylop.txt")
 
 
 #run on negative strands
@@ -186,7 +186,7 @@ uaug_neg <- as.numeric(uorf_neg$phylop)
 uorf_neg$phylop2 <- uaug_neg
 uaug_neg2 <- subset(uorf_neg, select = -c(phylop))
 
-#write.table(uaug_neg2,"uorf start neg phylop m1 8.1.23.txt")
+#write.table(uaug_neg2,"uorf start neg phylop m1.txt")
 
 
 
@@ -194,7 +194,7 @@ uaug_neg2 <- subset(uorf_neg, select = -c(phylop))
 #the uorf gneomic coords can contain introns so bit of fiddling to get the exact bits
 
 ###1. phylop for uorf starts
-starts_pos <- read.table("uorf start pos phylop m1 8.1.23.txt")
+starts_pos <- read.table("uorf start pos phylop m1.txt")
 starts_pos <- starts_pos %>% filter(strand_mane == "+")
 
 #now these are uorfs that are split by introns, so i only want the ones which start with ATG
@@ -217,7 +217,7 @@ table(starts_pos$start)
 starts_pos2 <- starts_pos %>% filter(start == "ATG")
 
 #now do neg
-starts_neg <- read.table("uorf start neg phylop m1 8.1.23.txt")
+starts_neg <- read.table("uorf start neg phylop m1.txt")
 starts_neg$chromosome <- paste0("chr", starts_neg$chromosome)
 #test run to see which end i want
 #i think its the end minus 2
@@ -247,7 +247,7 @@ neg2 <- subset(starts_neg2, select = -c(aug_start))
 uorf_st_phy <- rbind(neg2, starts_pos2) #yas
 
 #save
-#write.table(uorf_st_phy, "uorf starts phylop 9.1.23.txt")
+#write.table(uorf_st_phy, "uorf starts phylop.txt")
 
 
 
@@ -322,12 +322,12 @@ for (t in 1:(nrow(uorf_neg_st))) {
 uorfst2 <- as.numeric(uorf_neg_st$phylop)
 uorf_neg_st$phylop2 <- uorfst2
 uorf_neg_st2 <- subset(uorf_neg_st, select = -c(phylop))
-#write.table(uorf_neg_st2,"uorf end neg phylop m1 9.1.23.txt")
+#write.table(uorf_neg_st2,"uorf end neg phylop.txt")
 
 
 ####PHYLOP FOR UORF stops -bind pos and neg together, and clean data
 ##POS
-end_pos <- read.table("uorf end pos phylop 9.1.23.txt")
+end_pos <- read.table("uorf end pos phylop.txt")
 #using uorf position coords, pull the ends of uORFs and check that its stop codons - needs to be TAA/TAG/TGA. if it isnt, exclude
 
 end_pos$chromosome <- paste0("chr", end_pos$chromosome)
@@ -348,7 +348,7 @@ end_pos2 <- end_pos %>% filter(stop %in% c("TAA", "TAG", "TGA"))
 
 
 ###NEG
-end_neg <- read.table("uorf end neg phylop m1 9.1.23.txt")
+end_neg <- read.table("uorf end neg phylop m1.txt")
 
 end_neg$chromosome <- paste0("chr", end_neg$chromosome)
 #start plus 2
@@ -374,15 +374,15 @@ uorf_end_phy <- rbind(end_neg2, end_pos2) #yas
 #these coords will run across introns
 
 #make one df with phylop for starts and ends, then split into uORFs and ss's
-start_pos <- read.table("uorf start pos phylop m1 8.1.23.txt")
+start_pos <- read.table("uorf start pos phylop.txt")
 names(start_pos)[10] <- "ph_start"
 
-start_neg <- read.table("uorf start neg phylop m1 8.1.23.txt")
+start_neg <- read.table("uorf start neg phylop.txt")
 names(start_neg)[11] <- "ph_start"
 
-end_pos <- read.table("uorf end pos phylop 9.1.23.txt")
+end_pos <- read.table("uorf end pos phylop.txt")
 names(end_pos)[10] <- "ph_end"
-end_neg <- read.table("uorf end neg phylop m1 9.1.23.txt")
+end_neg <- read.table("uorf end neg phylop m1.txt")
 names(end_neg)[10] <- "ph_end"
 
 #split into uorf and ss
@@ -415,7 +415,7 @@ ss_end$group <- "Start-Stop End"
 phylop <- rbind(uorf_start, uorf_end, ss_start, ss_end)
 
 #save
-#write.table(phylop,".../uorf_ss phylop m1 10.1.23.txt")
+#write.table(phylop,"uorf_ss phylop m1.txt")
 
 #get mean ss phylop (for start and end) as one phylop score
 #make a new df with mean ss phylop and do again
@@ -427,7 +427,7 @@ ss <- subset(ss_start, select = -c(phylop_st, phylop_end))
 ss$group <- "Start-Stop"
 
 phylop2 <- rbind(uorf_start, uorf_end, ss)
-#write.table(phylop2,"uorf_ss phylop m1 10.1.23.txt")
+#write.table(phylop2,"uorf_ss phylop m1.txt")
 
 ```
 #2. CADD scores
@@ -478,8 +478,8 @@ names(five_more)[6] <- "exon_number"
 # BMRC using the bed file using tabix
 
 # module load BCFtools
-CADD_INPATH = '/well/whiffin/projects/cadd'
-CADD_OUTPUT = '/well/whiffin/users/wdf915/Projects/5prime_UTR'
+CADD_INPATH = '.../cadd'
+CADD_OUTPUT = '.../5prime_UTR'
 
 tabix${
   CADD_INPATH
@@ -502,7 +502,7 @@ cadd <- setNames(cadd, c("chr", "pos", "ref", "alt", "cadd", "phred"))
 
 cadd2 <-
   cadd %>% group_by(chr, pos) %>% summarise(cadd_mean = mean(cadd))
-write.table(cadd2, ".../cadd_scores_m1.txt")
+write.table(cadd2, "cadd_scores_m1.txt")
 #this is a score for each position within the 5'UTR, so I need to compute for the sections i want
 
 ###CADD for 5'UTR (mean)
@@ -515,7 +515,7 @@ write.table(cadd2, ".../cadd_scores_m1.txt")
 #takes about 2 hours
 #exon file needs to be the five_more data above
 five_more$chr <- str_replace(five_more$chr, "chr", "")
-#save: write.table(five_more, ".../exon_m1.txt")
+#save: write.table(five_more, "exon_m1.txt")
 exon <- read.table("exon_m1.txt")
 cadd <- read.table("cadd_scores_m1.txt")
 
@@ -532,6 +532,7 @@ for (r in 1:nrow(exon)) {
 
 write.table(exon, "fiveutr_cadd_m1.txt")
 
+#run in terminal:
 #R < .../cadd_5UTRs_m1.R --save
 
 
@@ -542,7 +543,7 @@ write.table(exon, "fiveutr_cadd_m1.txt")
 #bring in uorf genomic coords file
 
 cadd <- read.table("cadd_scores_m1.txt")
-uorf_gen <- read.table("ORFs_genomic_coord_12.12.22.txt")
+uorf_gen <- read.table("ORFs_genomic_coord.txt")
 
 #need the positions for the start/end of uORF and need to do the strands seperately
 
@@ -704,7 +705,7 @@ cadd_scores <- rbind(cadd_final, uorf_cadd, start_stop)
 ##1. prepare FASTA file
 #bring in 5'UTR sequences
 UTR_sequences.df <-
-  read.table("9.12.22 5' UTR sequences all info.txt", header = TRUE)#18764
+  read.table("5' UTR sequences all info.txt", header = TRUE)#18764
 #subset relevant cols
 five_UTR_seqs.df <-
   data.frame(
@@ -777,7 +778,7 @@ na <- subset(energyscore2, is.na(energy))
 
 
 #save
-#write.table(energyscore2,"freefold energyscore m1 13.12.22.txt")
+#write.table(energyscore2,"freefold energyscore m1.txt")
 ```
 #4. CAGE peak data
 ```{r message=FALSE, error=FALSE, warning=FALSE}
@@ -1490,15 +1491,15 @@ nrow(smutr) / nrow(length_exon)
 #The higher the score the stronger the TE is
 
 TE_norderer <-
-  read.delim("norderer TE 6.4.22.txt",
+  read.delim("norderer TE.txt",
              sep = '\t',
              header = TRUE)
 
 #bring in my uATG data and get this sequence range for each and then can merge them to get the new "kozak" strength for them.
 #for AUGs that are too close to the TSS exclude, because the ribosome wouldnt read them. for the ones that are too close to CDS, extract and deal with separately
 
-oorf <- read.table("oorf_12.12.22.txt") #3416
-uo <- read.table("uo_ss_12.12.22.txt")#19131 uorf and start-stops
+oorf <- read.table("oorf.txt") #3416
+uo <- read.table("uo_ss.txt")#19131 uorf and start-stops
 
 #make one df that just has what we need
 oorf$orf_type <- "oorf"
