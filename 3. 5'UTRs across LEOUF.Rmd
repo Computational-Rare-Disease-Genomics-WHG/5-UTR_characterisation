@@ -60,7 +60,7 @@ gn_final1 <- subset(gnomad_2, select=c("gene", "transcript", "pLI", "decile", "o
 #1. 5'UTR Lengths 
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #bring in MANE 5' UTR length
-length_exon <- read.table("length_introns_12.12.22.txt")
+length_exon <- read.table("length_introns.txt")
 
 #####merge by gene id called transcript type in gnomad data
 length_exon <- cSplit(length_exon, "gene_id", ".") 
@@ -158,7 +158,7 @@ chisq.test(test_int)$p.value
 #3. uAUG/uORF/oORF/Start-stops
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #1. get orf per gene data 
-orf_gene <- read.table(".../orf_gene 14.12.22.txt")
+orf_gene <- read.table("orf_gene.txt")
 
 #get gene_id
 orf2 <- merge(orf_gene, length_exon, by="transcript")
@@ -270,7 +270,7 @@ chisq.test(test)$p.value
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 ######4.1 uORF length
 #bring in data
-uo_len <- read.table("uo_ 20.9.22.txt")
+uo_len <- read.table("uo_ss.txt")
 uo_len <- merge(uo_len, length_exon, by="transcript")
 
 uorflen <- merge(gn_final1, uo_len, by="gene_id")
@@ -299,7 +299,7 @@ wilcox.test(botl, topl)$p.value
 ######4.2 uORF to CDS distance
 #last uORF-CDS distance
 #bring in data
-uORF_laststop <- read.table("uorfs reinitiation dis 20.9.22.txt")
+uORF_laststop <- read.table("uorfs reinitiation dis.txt")
 
 uORF_laststop <- merge(uORF_laststop, length_exon, by="transcript")
 
@@ -463,7 +463,7 @@ chisq.test(test_uo)$p.value
 
 ###2. codon optimality of riboseq uorfs across deciles
 #bring in optimality data
-ribo_opt2 <- read.table("smorf uorf codon optimality HeLa 28.7.22.txt")
+ribo_opt2 <- read.table("smorf uorf codon optimality HeLa.txt")
  
 gn_rib <- merge(gn_final1, ribo_opt2,by="gene_id")#4834
 
@@ -600,14 +600,14 @@ wilcox.test(bote, tope)$p.value
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #1. bring in PhyloP data
 ####5'UTR mean PhyloP
-phylop <- read.table("five_utr_ph_m1_10.1.23.txt")
+phylop <- read.table("five_utr_ph_m1.txt")
 phylop <- cSplit(phylop, "gene_id", ".")
 names(phylop)[7]<-"gene_id"
 #merge
 utr_ph <- merge(phylop, gn_final1,by="gene_id")
 
 ####uORF (start and ends) and start-stops
-phy2 <- read.table("uorf_ss phylop m1 10.1.23.txt")
+phy2 <- read.table("uorf_ss phylop m1.txt")
 #merge with mane to get gene names
 names(phy2)[1]<-"transcript"
 ph_name <- merge(length_exon, phy2, by="transcript")
@@ -748,7 +748,7 @@ wilcox.test(bot_gc1, top_gc1)$p.value
 ```
 #10.CAGE
 ```{r message=FALSE, error=FALSE, warning=FALSE}
-cage_count <- read.table("cage m1 13.12.22.txt")
+cage_count <- read.table("cage m1.txt")
 cage_count <- cSplit(cage_count, "gene_id", ".")
 names(cage_count)[6]<-"gene_id"
 cage_gn <- merge(gn_final1, cage_count, by="gene_id")#16233
@@ -894,7 +894,7 @@ chisq.test(cage_stat)$p.value
 ```
 #11. MFE
 ```{r message=FALSE, error=FALSE, warning=FALSE}
-energy_score <- read.table("freefold energyscore m1 13.12.22.txt")
+energy_score <- read.table("freefold energyscore m1.txt")
 
 energy_score <- merge(length_exon, energy_score, by="transcript")
 
@@ -943,7 +943,7 @@ wilcox.test(bot_2, top_2)$p.value
 #12. CADD 
 ```{r message=FALSE, error=FALSE, warning=FALSE}
 #bring in CADD data
-cadd <- read.table("cadd_all_m1_17.12.22.txt")
+cadd <- read.table("cadd_all_m1.txt")
 names(cadd)[1] <-"transcript"
 cadd2 <- merge(cadd, length_exon, by="transcript")
 
@@ -1014,8 +1014,8 @@ t.test(bot_ss$cadd, top_ss$cadd)
 ```{r}
 #compare the uAUG consensus sequences for top and bottom 2 LEOUF deciles
 #bring in all uaugs
-uo_ss <- read.table("uo_ss_12.12.22.txt")
-oorf <- read.table("oorf_12.12.22.txt")
+uo_ss <- read.table("uo_ss.txt")
+oorf <- read.table("oorf.txt")
 
 #put into 1 table
 oorf$orf_type <- "oORF"
