@@ -3,11 +3,6 @@ title: "4. 5'UTRs across LEOUF"
 output: rmarkdown::github_document
 ---
 
-
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(eval = FALSE)
-```
-
 #5'UTR Analysis for disease genes (DD, cancer, DS)
 1. Bring in gene sets and clean data
 2. 5UTR Length
@@ -57,7 +52,7 @@ names(dd1)[13] <- "HGNC"
 dd <- merge(dd1, mane2, by = "HGNC")#2071
 
 #bring length data in
-length_exon <- read.table("length_introns_12.12.22.txt")
+length_exon <- read.table("length_introns.txt")
 
 #filter to just LoF, mono/bi
 lof <- dd %>% filter(mutation.consequence == "loss of function")#1443
@@ -216,7 +211,7 @@ wilcox.test(n_trip, tr_le)$p.value #2.953262e-35
 #3. uAUG Types
 ```{r}
 #bring in data
-orf_gene <- read.table("orf_gene 14.12.22.txt")
+orf_gene <- read.table("orf_gene.txt")
 
 #merge with length disese plot?
 #this is only transcript ids. need transcript ids added to length disease plot
@@ -487,7 +482,7 @@ chisq.test(tripss)$p.value
 #4. PhyloP 
 ```{r}
 #make a grouped boxplot of mean phylop for 5utrs 
-phylop <- read.table("five_utr_ph_m1_10.1.23.txt")
+phylop <- read.table("five_utr_ph_m1.txt")
 
 #add phylop to each disease sub and rbind into 1
 #hap_len, trip_len,onc,TSG2,mono, bi, all
@@ -960,7 +955,7 @@ middle_genes <- middle$gene
 #how many recessive are in middle
 df <- intersect(bi_genes, middle_genes) #319
 
-length_exon <- read.table("length_introns_12.12.22.txt")
+length_exon <- read.table("length_introns.txt")
 
 names(length_exon)[1]<-"gene"
 mid_len <- merge(middle, length_exon, by="gene")#3507
@@ -1031,7 +1026,7 @@ chisq.test(rec_uo2)$p.value
 #compare phylop recessive vs middle louef phylop
 recp <- bi_ph$agg_PGS
 
-phylop <- read.table("five_utr_ph_m1_10.1.23.txt")
+phylop <- read.table("five_utr_ph_m1.txt")
 #merge
 utr_ph <- merge(phylop, gn_final1,by="gene")
 mid_ph <- utr_ph %>% filter(decile %in% (5:6))
