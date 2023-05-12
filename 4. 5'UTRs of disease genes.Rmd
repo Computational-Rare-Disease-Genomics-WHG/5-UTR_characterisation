@@ -417,7 +417,7 @@ chisq.test(monss)$p.value
 r2 <- anti_join(bi, ss_per_gene, by="gene")#
 rec_ss <- merge(ss_per_gene, bi, by="gene")#
 
-#get 0 ss for all and dd dom
+#get 0 ss for all and dd rec
 noss <- c(nrow(no_r_no), nrow(r2))
 ss1 <- c(nrow(no_r_ss), nrow(rec_ss))
 recss <- data.frame("0"=noss, "1"=ss1)
@@ -441,7 +441,7 @@ chisq.test(oncss)$p.value
 
 
 #tsg
-#onc
+
 t2 <- anti_join(TSG2, ss_per_gene, by="gene")#
 tsg_ss <- merge(ss_per_gene, TSG2, by="gene")#
 #get 0 uorf for all and dd rec
